@@ -1,6 +1,7 @@
 class Register():
     def __init__(self, start: int, size: int = 1, endianness: str = "little",
-                 signed: bool = True, shift: int = 0, mask: list[int] = None):
+                 signed: bool = True, shift: int = 0,
+                 mask: list[int] | None = None):
 
         self.start = start
         self.size = size

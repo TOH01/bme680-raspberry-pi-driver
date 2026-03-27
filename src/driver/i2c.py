@@ -41,8 +41,8 @@ class I2CDevice():
         raw_register = self.read_at(register.start, register.size)
         return register.from_raw(raw_register)
 
-    def write_register(self, register: Register) -> None:
-        self.write_at(register.start, register.to_raw())
+    def write_register(self, register: Register, value: int) -> None:
+        self.write_at(register.start, register.to_raw(value))
 
     def write_register_masked(self, register: Register, value: int) -> None:
         current = self.read_at(register.start, register.size)

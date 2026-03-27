@@ -33,6 +33,11 @@ class BME680Compensation:
         self.par_g1: int = 0
         self.par_g2: int = 0
         self.par_g3: int = 0
+        # Res heat
+        self.res_heat_range: int = 0
+        self.res_heat_val:  int = 0
+
+        self.range_switching_error: int = 0
 
     @classmethod
     def from_device(cls, i2c_dev: I2CDevice) -> "BME680Compensation":
@@ -64,6 +69,9 @@ class BME680Compensation:
 
     def _load_gas(self, i2c_dev: I2CDevice) -> None:
         self._load_group(i2c_dev, bme680_register.GAS_CAL_REG_GROUP)
+
+    def _load_res_heat(self, i2c_dev: I2CDevice) -> None:
+        self._load_group(i2c_dev, bme680_register.RES_HEAT_REG_GROUP)
 
     # 3.3.1 Temperature measurement
     def calc_t_fine(self, temp_adc: int) -> float:
@@ -101,22 +109,18 @@ class BME680Compensation:
         return hum_comp
 
     # 3.3.5 Gas sensor heating and measurement
-    def calc_gas_res_heat_val(self, res_heat_range: int, res_heat_val: int,
-                              amb_temp: int, target_temp: int) -> int:
-
+    def calc_gas_res_heat_val(self, amb_temp: int, target_temp: int) -> int:
         var1 = (self.par_g1 / 16.0) + 49.0
         var2 = ((self.par_g2 / 32768.0) * 0.0005) + 0.00235
         var3 = self.par_g3 / 1024.0
         var4 = var1 * (1.0 + (var2 * target_temp))
         var5 = var4 + (var3 * amb_temp)
-        res_heat_x = int((3.4 * ((var5 * (4.0 / (4.0 + res_heat_range)) * (1.0/(1.0 + (res_heat_val * 0.002)))) - 25)))  # noqa: E501
+        res_heat_x = int((3.4 * ((var5 * (4.0 / (4.0 + self.res_heat_range)) * (1.0/(1.0 + (self.res_heat_val * 0.002)))) - 25)))  # noqa: E501
         res_heat_int8 = 0xFF & res_heat_x
         return res_heat_int8
 
     # 3.4.1 Gas sensor resistance readout
-    def calc_gas_res(self, gas_adc: int, gas_range: int,
-                     range_switching_error: int) -> float:
-
-        var1 = (1340.0 + 5.0 * range_switching_error) * bme680_constants.const_array1[gas_range]  # noqa: E501
+    def calc_gas_res(self, gas_adc: int, gas_range: int) -> float:
+        var1 = (1340.0 + 5.0 * self.range_switching_error) * bme680_constants.const_array1[gas_range]  # noqa: E501
         gas_res = var1 * bme680_constants.const_array2[gas_range] / (gas_adc - 512.0 + var1)  # noqa: E501
         return gas_res

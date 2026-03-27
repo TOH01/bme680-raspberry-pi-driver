@@ -4,8 +4,12 @@ from .register_group import RegisterGroup
 
 CHIP_ID_REG = Register(0xD0)
 CTRL_MEAS_REG = Register(0x74, mask=[0x03])
-MEAS_STATUS_0_REG = Register(0x1D)
+NEW_DATA_REG = Register(0x1D, mask=[0x80], signed=False)
 PAR_T1_REG = Register(0xE9, size=2, signed=False)
+NB_CONV_REG = Register(0x71, signed=False, mask=[0x0F])
+RUN_GAS_REG = Register(0x71, signed=False, mask=[0x10], shift=4)
+GAS_VALID_REG = Register(0x2B, mask=[0x20], signed=False)
+HEAT_STAB_REG = Register(0x2B, mask=[0x10], signed=False)
 
 # https://github.com/boschsensortec/BME68x_SensorAPI/blob/80ea120a8b8ac987d7d79eb68a9ed796736be845/bme68x_defs.h#L813
 PRESSURE_CAL_REG_GROUP = RegisterGroup({
@@ -46,10 +50,14 @@ GAS_CAL_REG_GROUP = RegisterGroup({
 # https://github.com/boschsensortec/BME68x_SensorAPI/blob/80ea120a8b8ac987d7d79eb68a9ed796736be845/bme68x_defs.h#L852
 RES_HEAT_REG_GROUP = RegisterGroup({
     "res_heat_range": Register(0x02, signed=False, mask=[0x30], shift=4),
-    "res_heat_val":   Register(0x00)
+    "res_heat_val":   Register(0x00),
+    "range_switching_error": Register(0x04)
 })
 
 ADC_REG_GROUP = RegisterGroup({
+    "gas_adc": Register(0x2A, size=2, endianness="big",
+                        signed=False, mask=[0xFF, 0xC0], shift=6),
+    "gas_range": Register(0x2B, signed=False, mask=[0x0F]),
     "temp_adc":  Register(0x22, size=3, endianness="big",
                           signed=False, shift=4),
     "press_adc": Register(0x1F, size=3, endianness="big",
