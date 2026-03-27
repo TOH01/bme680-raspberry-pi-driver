@@ -16,10 +16,27 @@ A pure Python driver for the Bosch BME680 environmental sensor on Raspberry Pi 4
 - BME680 sensor connected via I2C (default address `0x77`, falls back to `0x76`)
 - I2C enabled on the Pi (`sudo raspi-config` → Interface Options → I2C)
 
+## Wiring
+
+Tested with the Joy-IT BME680 breakout board. Connect four pins:
+
+| Raspberry Pi 5 | BME680 |
+|-----------------|--------|
+| Pin 1 (3.3V)   | VCC    |
+| Pin 3 (SDA)    | SDA    |
+| Pin 5 (SCL)    | SCL    |
+| Pin 6 (GND)    | GND    |
+
+Leave SDO and CS unconnected — the Joy-IT board pulls SDO high, setting the I2C address to `0x77`. Other breakout boards may wire these differently; if the sensor isn't found, check whether SDO needs to be tied high or low for your board.
+
+![Wiring diagram](docs/wiring.svg)
+
 ## Project Structure
 
 ```
 .
+├── docs/
+│   └── wiring.svg              # Wiring diagram
 ├── src/
 │   ├── example.py              # Usage example
 │   ├── driver/                  # Python BME680 driver
@@ -45,7 +62,7 @@ A pure Python driver for the Bosch BME680 environmental sensor on Raspberry Pi 4
 
 ## Setup
 
-### 1. Install Python dependencies (smbus2 should be preinstalled on pi4/5)
+### 1. Install Python dependencies
 
 ```bash
 pip install smbus2

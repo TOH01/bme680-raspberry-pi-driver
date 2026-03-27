@@ -1,0 +1,146 @@
+<svg width="100%" viewBox="0 0 680 385" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .th { font-size: 14px; font-weight: 500; }
+    .ts { font-size: 12px; font-weight: 400; fill: #5F5E5A; }
+
+    /* Color fills and strokes */
+    .c-gray > rect { fill: #F1EFE8; stroke: #5F5E5A; }
+    .c-gray > .th { fill: #2C2C2A; }
+    .c-gray > .ts { fill: #5F5E5A; }
+
+    .c-coral > rect { fill: #FAECE7; stroke: #993C1D; }
+    .c-coral > .th { fill: #712B13; }
+
+    .c-blue > rect { fill: #E6F1FB; stroke: #185FA5; }
+    .c-blue > .th { fill: #0C447C; }
+
+    .c-teal > rect { fill: #E1F5EE; stroke: #0F6E56; }
+    .c-teal > .th { fill: #085041; }
+
+    .c-purple > rect { fill: #EEEDFE; stroke: #534AB7; }
+    .c-purple > .th { fill: #26215C; }
+    .c-purple > .ts { fill: #534AB7; }
+
+    .nc-rect { fill: none; stroke: #888780; stroke-width: 0.5; stroke-dasharray: 3 3; opacity: 0.4; }
+    .nc-text { font-size: 12px; font-weight: 400; fill: #888780; opacity: 0.4; }
+
+    @media (prefers-color-scheme: dark) {
+      .c-gray > rect { fill: #444441; stroke: #B4B2A9; }
+      .c-gray > .th { fill: #D3D1C7; }
+      .c-gray > .ts, .ts { fill: #B4B2A9; }
+
+      .c-coral > rect { fill: #712B13; stroke: #F0997B; }
+      .c-coral > .th { fill: #F5C4B3; }
+
+      .c-blue > rect { fill: #0C447C; stroke: #85B7EB; }
+      .c-blue > .th { fill: #B5D4F4; }
+
+      .c-teal > rect { fill: #085041; stroke: #5DCAA5; }
+      .c-teal > .th { fill: #9FE1CB; }
+
+      .c-purple > rect { fill: #3C3489; stroke: #AFA9EC; }
+      .c-purple > .th { fill: #CECBF6; }
+      .c-purple > .ts { fill: #AFA9EC; }
+
+      .nc-rect { stroke: #B4B2A9; }
+      .nc-text { fill: #B4B2A9; }
+    }
+  </style>
+
+  <!-- Pi 5 GPIO header -->
+  <g class="c-gray">
+    <rect x="40" y="30" width="240" height="280" rx="12" stroke-width="0.5"/>
+    <text class="th" x="160" y="58" text-anchor="middle">Raspberry Pi 5 GPIO</text>
+    <text class="ts" x="160" y="76" text-anchor="middle">40-pin header (pins 1–8 shown)</text>
+  </g>
+
+  <!-- Left column pins (odd) -->
+  <g class="c-coral">
+    <rect x="60" y="96" width="90" height="28" rx="4" stroke-width="0.5"/>
+    <text class="th" x="105" y="110" text-anchor="middle" dominant-baseline="central">3.3V</text>
+  </g>
+  <text class="ts" x="78" y="134" text-anchor="middle">Pin 1</text>
+
+  <g class="c-blue">
+    <rect x="60" y="146" width="90" height="28" rx="4" stroke-width="0.5"/>
+    <text class="th" x="105" y="160" text-anchor="middle" dominant-baseline="central">SDA</text>
+  </g>
+  <text class="ts" x="78" y="184" text-anchor="middle">Pin 3</text>
+
+  <g class="c-teal">
+    <rect x="60" y="196" width="90" height="28" rx="4" stroke-width="0.5"/>
+    <text class="th" x="105" y="210" text-anchor="middle" dominant-baseline="central">SCL</text>
+  </g>
+  <text class="ts" x="78" y="234" text-anchor="middle">Pin 5</text>
+
+  <g class="c-gray">
+    <rect x="60" y="246" width="90" height="28" rx="4" stroke-width="0.5"/>
+    <text class="ts" x="105" y="260" text-anchor="middle" dominant-baseline="central">GPIO 4</text>
+  </g>
+  <text class="ts" x="78" y="284" text-anchor="middle">Pin 7</text>
+
+  <!-- Right column pins (even) -->
+  <g class="c-gray">
+    <rect x="170" y="96" width="90" height="28" rx="4" stroke-width="0.5"/>
+    <text class="ts" x="215" y="110" text-anchor="middle" dominant-baseline="central">5V</text>
+  </g>
+  <text class="ts" x="233" y="134" text-anchor="middle">Pin 2</text>
+
+  <g class="c-gray">
+    <rect x="170" y="146" width="90" height="28" rx="4" stroke-width="0.5"/>
+    <text class="ts" x="215" y="160" text-anchor="middle" dominant-baseline="central">5V</text>
+  </g>
+  <text class="ts" x="233" y="184" text-anchor="middle">Pin 4</text>
+
+  <g class="c-gray">
+    <rect x="170" y="196" width="90" height="28" rx="4" stroke-width="0.5"/>
+    <text class="th" x="215" y="210" text-anchor="middle" dominant-baseline="central">GND</text>
+  </g>
+  <text class="ts" x="233" y="234" text-anchor="middle">Pin 6</text>
+
+  <g class="c-gray">
+    <rect x="170" y="246" width="90" height="28" rx="4" stroke-width="0.5"/>
+    <text class="ts" x="215" y="260" text-anchor="middle" dominant-baseline="central">GPIO 14</text>
+  </g>
+  <text class="ts" x="233" y="284" text-anchor="middle">Pin 8</text>
+
+  <!-- BME680 sensor board -->
+  <g class="c-purple">
+    <rect x="430" y="30" width="210" height="340" rx="12" stroke-width="0.5"/>
+    <text class="th" x="535" y="58" text-anchor="middle">BME680 (Joy-IT)</text>
+    <text class="ts" x="535" y="76" text-anchor="middle">I2C breakout board</text>
+  </g>
+
+  <g class="c-coral">
+    <rect x="450" y="96" width="80" height="28" rx="4" stroke-width="0.5"/>
+    <text class="th" x="490" y="110" text-anchor="middle" dominant-baseline="central">VCC</text>
+  </g>
+
+  <g class="c-gray">
+    <rect x="450" y="146" width="80" height="28" rx="4" stroke-width="0.5"/>
+    <text class="th" x="490" y="160" text-anchor="middle" dominant-baseline="central">GND</text>
+  </g>
+
+  <g class="c-teal">
+    <rect x="450" y="196" width="80" height="28" rx="4" stroke-width="0.5"/>
+    <text class="th" x="490" y="210" text-anchor="middle" dominant-baseline="central">SCL</text>
+  </g>
+
+  <g class="c-blue">
+    <rect x="450" y="246" width="80" height="28" rx="4" stroke-width="0.5"/>
+    <text class="th" x="490" y="260" text-anchor="middle" dominant-baseline="central">SDA</text>
+  </g>
+
+  <rect class="nc-rect" x="450" y="296" width="80" height="28" rx="4"/>
+  <text class="nc-text" x="490" y="310" text-anchor="middle" dominant-baseline="central">SDO</text>
+
+  <rect class="nc-rect" x="450" y="336" width="80" height="28" rx="4"/>
+  <text class="nc-text" x="490" y="350" text-anchor="middle" dominant-baseline="central">CS</text>
+
+  <!-- Wires -->
+  <path d="M105 124 L105 330 L395 330 L395 110 L450 110" fill="none" stroke="#D85A30" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M100 174 L100 340 L405 340 L405 260 L450 260" fill="none" stroke="#378ADD" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M95 224 L95 350 L415 350 L415 210 L450 210" fill="none" stroke="#1D9E75" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M260 210 L345 210 L345 160 L450 160" fill="none" stroke="#888780" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
