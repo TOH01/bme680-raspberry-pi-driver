@@ -34,9 +34,9 @@ class BME680():
     def _verify_heater_profile(self, profile_id: int, time_ms: int,
                                time_multiplier: int) -> None:
 
-        if not 0 <= profile_id < bme680_constants.MAX_HEATER_PROFILES:
-            raise ValueError(f"Heater profile {profile_id} not within"
-                             f" 0-{bme680_constants.MAX_HEATER_PROFILES}")
+        if not 0 <= profile_id <= bme680_constants.MAX_HEATER_PROFILES_INDEX:
+            raise ValueError(f"Heater profile {profile_id} not within "
+                             f"0-{bme680_constants.MAX_HEATER_PROFILES_INDEX}")
         if not 0 <= time_ms <= bme680_constants.MAX_HEATER_WAIT_VALUE:
             raise ValueError(f"Heater base wait {time_ms} not within"
                              f" 0-{bme680_constants.MAX_HEATER_WAIT_VALUE}")
@@ -51,6 +51,10 @@ class BME680():
         if oversampling_setting not in bme680_constants.OVERSAMPLING_SETTINGS:
             raise ValueError(f"Invalid oversampling "
                              f"setting {oversampling_setting}")
+
+    def _verifiy_iir_coefficient(self, coefficient: int) -> None:
+        if coefficient not in bme680_constants.IIR_FILTER_COEFFICIENTS:
+            raise ValueError(f"Invalid IIR coefficient {coefficient}")
 
     def close(self) -> None:
         self.i2c_dev.bus.close()
@@ -133,16 +137,25 @@ class BME680():
         }
 
     def set_pressure_oversampling(self, oversampling_setting: int):
-        self._verify_oversampling_setting()
+        self._verify_oversampling_setting(oversampling_setting)
         self.i2c_dev.write_register_masked(bme680_register.OSRS_P_REG,
                                            oversampling_setting)
 
     def set_temperature_oversampling(self, oversampling_setting: int):
-        self._verify_oversampling_setting()
+        self._verify_oversampling_setting(oversampling_setting)
         self.i2c_dev.write_register_masked(bme680_register.OSRS_T_REG,
                                            oversampling_setting)
 
     def set_humidity_oversampling(self, oversampling_setting: int):
-        self._verify_oversampling_setting()
+        self._verify_oversampling_setting(oversampling_setting)
         self.i2c_dev.write_register_masked(bme680_register.OSRS_H_REG,
                                            oversampling_setting)
+
+    def soft_reset(self):
+        self.i2c_dev.write_register(bme680_register.RESET_REG,
+                                    bme680_constants.I2C_SOFT_RESET_REG_VALUE)
+
+    def set_iir_filter(self, coefficient: int):
+        self._verifiy_iir_coefficient(coefficient)
+        self.i2c_dev.write_register_masked(bme680_register.CONFIG_FILTER_REG,
+                                           coefficient)

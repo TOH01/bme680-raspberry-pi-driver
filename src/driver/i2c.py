@@ -45,6 +45,10 @@ class I2CDevice():
         self.write_at(register.start, register.to_raw(value))
 
     def write_register_masked(self, register: Register, value: int) -> None:
+        if not register.mask:
+            raise RuntimeError("write_register_masked() called "
+                               "with register.mask = None")
+
         current = self.read_at(register.start, register.size)
         raw = register.to_raw(value)
         merged = [

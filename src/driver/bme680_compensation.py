@@ -46,6 +46,7 @@ class BME680Compensation:
         cal._load_pressure(i2c_dev)
         cal._load_humidity(i2c_dev)
         cal._load_gas(i2c_dev)
+        cal._load_res_heat(i2c_dev)
         return cal
 
     def _load_group(self, i2c_dev: I2CDevice, group: RegisterGroup) -> None:
@@ -92,11 +93,17 @@ class BME680Compensation:
         var1 = (((self.par_p3 * var1 * var1) / 16384.0) + (self.par_p2 * var1)) / 524288.0  # noqa: E501
         var1 = (1.0 + (var1 / 32768.0)) * self.par_p1
         press_comp = 1048576.0 - press_adc
-        press_comp = ((press_comp - (var2 / 4096.0)) * 6250.0) / var1
-        var1 = (self.par_p9 * press_comp * press_comp) / 2147483648.0
-        var2 = press_comp * (self.par_p8 / 32768.0)
-        var3 = (press_comp / 256.0) ** 3 * self.par_p10 / 131072.0
-        press_comp = press_comp + (var1 + var2 + var3 + (self.par_p7 * 128.0)) / 16.0  # noqa: E501
+
+        # https://github.com/boschsensortec/BME68x_SensorAPI/blob/80ea120a8b8ac987d7d79eb68a9ed796736be845/bme68x.c#L1056
+        if var1 != 0:
+            press_comp = ((press_comp - (var2 / 4096.0)) * 6250.0) / var1
+            var1 = (self.par_p9 * press_comp * press_comp) / 2147483648.0
+            var2 = press_comp * (self.par_p8 / 32768.0)
+            var3 = (press_comp / 256.0) ** 3 * self.par_p10 / 131072.0
+            press_comp = press_comp + (var1 + var2 + var3 + (self.par_p7 * 128.0)) / 16.0  # noqa: E501
+        else:
+            press_comp = 0
+
         return press_comp
 
     # 3.3.3 Humidity measurement
@@ -106,6 +113,13 @@ class BME680Compensation:
         var3 = self.par_h6 / 16384.0
         var4 = self.par_h7 / 2097152.0
         hum_comp = var2 + ((var3 + (var4 * temp_comp)) * var2 * var2)
+
+        # https://github.com/boschsensortec/BME68x_SensorAPI/blob/80ea120a8b8ac987d7d79eb68a9ed796736be845/bme68x.c#L1093
+        if hum_comp > 100.0:
+            hum_comp = 100.0
+        elif hum_comp < 0.0:
+            hum_comp = 0.0
+
         return hum_comp
 
     # 3.3.5 Gas sensor heating and measurement

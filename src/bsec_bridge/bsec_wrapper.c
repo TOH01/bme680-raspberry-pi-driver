@@ -4,6 +4,7 @@
 #include "bsec_interface.h"
 #include "bsec_datatypes.h"
 #include "bsec_wrapper.h"
+#include "bsec_iaq.h"
 
 int init_bridge(void)
 {
@@ -14,6 +15,9 @@ int init_bridge(void)
     bsec_library_return_t           status                                               = BSEC_OK;
     
     status = bsec_init();
+    
+    uint8_t work_buffer[BSEC_MAX_WORKBUFFER_SIZE];
+    status = bsec_set_configuration(bsec_config_iaq, sizeof(bsec_config_iaq), work_buffer, BSEC_MAX_WORKBUFFER_SIZE);
 
     if (status == BSEC_OK){
         requested_virtual_sensors[0].sensor_id = BSEC_OUTPUT_IAQ;
@@ -41,6 +45,27 @@ int init_bridge(void)
             required_sensor_settings, &n_required_sensor_settings);
     }
     return status;
+}
+
+bsec_settings_t bridge_sensor_control(int64_t timestamp_ns)
+{
+    bsec_settings_t result;
+    memset(&result, 0, sizeof(result));
+ 
+    bsec_bme_settings_t settings;
+    bsec_sensor_control(timestamp_ns, &settings);
+ 
+    result.next_call_ns             = settings.next_call;
+    result.heater_temperature       = settings.heater_temperature;
+    result.heater_duration          = settings.heater_duration;
+    result.run_gas                  = settings.run_gas;
+    result.temperature_oversampling = settings.temperature_oversampling;
+    result.pressure_oversampling    = settings.pressure_oversampling;
+    result.humidity_oversampling    = settings.humidity_oversampling;
+    result.trigger_measurement      = settings.trigger_measurement;
+    result.process_data             = settings.process_data;
+ 
+    return result;
 }
 
 bsec_result_t bsec_compute(int64_t timestamp_ns, float temperature, float humidity, float pressure, float gas_resistance)

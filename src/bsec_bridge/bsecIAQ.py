@@ -21,10 +21,25 @@ class _BsecResult(ctypes.Structure):
     ]
 
 
+class _BsecSettings(ctypes.Structure):
+    _fields_ = [
+        ("next_call_ns",             ctypes.c_int64),
+        ("heater_temperature",       ctypes.c_uint16),
+        ("heater_duration",          ctypes.c_uint16),
+        ("run_gas",                  ctypes.c_ubyte),
+        ("temperature_oversampling", ctypes.c_ubyte),
+        ("pressure_oversampling",    ctypes.c_ubyte),
+        ("humidity_oversampling",    ctypes.c_ubyte),
+        ("trigger_measurement",      ctypes.c_ubyte),
+        ("process_data",             ctypes.c_uint32),
+    ]
+
+
 class BsecIAQ:
     def __init__(self, lib_path: str = "./libbsec_wrapper.so"):
         if not os.path.exists(lib_path):
             raise FileNotFoundError(f"BSEC library not found: {lib_path}")
+
         self._lib = ctypes.CDLL(lib_path)
         self._lib.bsec_compute.restype = _BsecResult
         self._lib.bsec_compute.argtypes = [
@@ -34,19 +49,25 @@ class BsecIAQ:
             ctypes.c_float,
             ctypes.c_float,
         ]
+
         self._lib.bridge_get_state.restype = ctypes.c_int
         self._lib.bridge_get_state.argtypes = [
             ctypes.POINTER(ctypes.c_uint8),
             ctypes.POINTER(ctypes.c_uint32),
         ]
+
         self._lib.bridge_set_state.restype = ctypes.c_int
         self._lib.bridge_set_state.argtypes = [
             ctypes.POINTER(ctypes.c_uint8),
             ctypes.c_uint32,
         ]
+
         self._lib.bridge_max_state_size.restype = ctypes.c_uint32
         self._lib.bridge_max_state_size.argtypes = []
         self._state_size = self._lib.bridge_max_state_size()
+
+        self._lib.bridge_sensor_control.restype = _BsecSettings
+        self._lib.bridge_sensor_control.argtypes = [ctypes.c_int64]
 
     def start_bsec(self) -> None:
         status = self._lib.init_bridge()
@@ -103,3 +124,17 @@ class BsecIAQ:
         status = self._lib.bridge_set_state(buf, ctypes.c_uint32(len(data)))
         if status < 0:
             raise RuntimeError(f"bridge_set_state failed with status {status}")
+
+    def get_sensor_settings(self) -> dict:
+        settings = self._lib.bridge_sensor_control(time.monotonic_ns())
+        return {
+            "next_call_ns":             settings.next_call_ns,
+            "heater_temperature":       settings.heater_temperature,
+            "heater_duration":          settings.heater_duration,
+            "run_gas":                  bool(settings.run_gas),
+            "temperature_oversampling": settings.temperature_oversampling,
+            "pressure_oversampling":    settings.pressure_oversampling,
+            "humidity_oversampling":    settings.humidity_oversampling,
+            "trigger_measurement":      bool(settings.trigger_measurement),
+            "process_data":             settings.process_data,
+        }
