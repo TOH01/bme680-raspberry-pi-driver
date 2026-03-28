@@ -7,30 +7,50 @@
 
 int init_bridge(void)
 {
-    bsec_library_return_t status = bsec_init();
+    bsec_sensor_configuration_t     requested_virtual_sensors[NUM_USED_OUTPUTS];
+    uint8_t                         n_requested_virtual_sensors                          = NUM_USED_OUTPUTS;
+    bsec_sensor_configuration_t     required_sensor_settings[BSEC_MAX_PHYSICAL_SENSOR];
+    uint8_t                         n_required_sensor_settings                           = BSEC_MAX_PHYSICAL_SENSOR;
+    bsec_library_return_t           status                                               = BSEC_OK;
+    
+    status = bsec_init();
 
     if (status == BSEC_OK){
-        bsec_sensor_configuration_t requested[2];
-        requested[0].sensor_id   = BSEC_OUTPUT_IAQ;
-        requested[0].sample_rate = BSEC_SAMPLE_RATE_LP;
-        requested[1].sensor_id   = BSEC_OUTPUT_STATIC_IAQ;
-        requested[1].sample_rate = BSEC_SAMPLE_RATE_LP;
+        requested_virtual_sensors[0].sensor_id = BSEC_OUTPUT_IAQ;
+        requested_virtual_sensors[0].sample_rate = BSEC_SAMPLE_RATE_LP;
+        requested_virtual_sensors[1].sensor_id = BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE;
+        requested_virtual_sensors[1].sample_rate = BSEC_SAMPLE_RATE_LP;
+        requested_virtual_sensors[2].sensor_id = BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY;
+        requested_virtual_sensors[2].sample_rate = BSEC_SAMPLE_RATE_LP;
+        requested_virtual_sensors[3].sensor_id = BSEC_OUTPUT_STATIC_IAQ;
+        requested_virtual_sensors[3].sample_rate = BSEC_SAMPLE_RATE_LP;
+        requested_virtual_sensors[4].sensor_id = BSEC_OUTPUT_CO2_EQUIVALENT;
+        requested_virtual_sensors[4].sample_rate = BSEC_SAMPLE_RATE_LP;
+        requested_virtual_sensors[5].sensor_id = BSEC_OUTPUT_BREATH_VOC_EQUIVALENT;
+        requested_virtual_sensors[5].sample_rate = BSEC_SAMPLE_RATE_LP;
+        requested_virtual_sensors[6].sensor_id = BSEC_OUTPUT_STABILIZATION_STATUS;
+        requested_virtual_sensors[6].sample_rate = BSEC_SAMPLE_RATE_LP;
+        requested_virtual_sensors[7].sensor_id = BSEC_OUTPUT_RUN_IN_STATUS;
+        requested_virtual_sensors[7].sample_rate = BSEC_SAMPLE_RATE_LP;
+        requested_virtual_sensors[8].sensor_id = BSEC_OUTPUT_GAS_PERCENTAGE;
+        requested_virtual_sensors[8].sample_rate = BSEC_SAMPLE_RATE_LP;
+        requested_virtual_sensors[9].sensor_id = BSEC_OUTPUT_COMPENSATED_GAS;
+        requested_virtual_sensors[9].sample_rate = BSEC_SAMPLE_RATE_LP;
 
-        bsec_sensor_configuration_t required[BSEC_MAX_PHYSICAL_SENSOR];
-        uint8_t n_required = BSEC_MAX_PHYSICAL_SENSOR;
-
-        status = bsec_update_subscription(requested, 2, required, &n_required);
+        status = bsec_update_subscription(requested_virtual_sensors, n_requested_virtual_sensors, 
+            required_sensor_settings, &n_required_sensor_settings);
     }
-
     return status;
 }
 
-bsec_result_t bsec_compute(int64_t timestamp_ns, float temperature, float humidity, float gas_resistance)
+bsec_result_t bsec_compute(int64_t timestamp_ns, float temperature, float humidity, float pressure, float gas_resistance)
 {
-    bsec_result_t result;
-    memset(&result, 0, sizeof(result));
+    bsec_result_t           bsec_result                         = {0};
+    bsec_input_t            inputs[4];
+    bsec_library_return_t   status;
+    bsec_output_t           bsec_outputs[BSEC_NUMBER_OUTPUTS];
+    uint8_t                 num_bsec_outputs                    = BSEC_NUMBER_OUTPUTS;
 
-    bsec_input_t inputs[3];
     inputs[0].sensor_id  = BSEC_INPUT_TEMPERATURE;
     inputs[0].signal     = temperature;
     inputs[0].time_stamp = timestamp_ns;
@@ -39,31 +59,62 @@ bsec_result_t bsec_compute(int64_t timestamp_ns, float temperature, float humidi
     inputs[1].signal     = humidity;
     inputs[1].time_stamp = timestamp_ns;
 
-    inputs[2].sensor_id  = BSEC_INPUT_GASRESISTOR;
-    inputs[2].signal     = gas_resistance;
+    inputs[2].sensor_id  = BSEC_INPUT_PRESSURE;
+    inputs[2].signal     = pressure;
     inputs[2].time_stamp = timestamp_ns;
 
-    bsec_output_t outputs[BSEC_NUMBER_OUTPUTS];
-    uint8_t       n_outputs = BSEC_NUMBER_OUTPUTS;
+    inputs[3].sensor_id  = BSEC_INPUT_GASRESISTOR;
+    inputs[3].signal     = gas_resistance;
+    inputs[3].time_stamp = timestamp_ns;
 
-    bsec_library_return_t status = bsec_do_steps(inputs, 3, outputs, &n_outputs);
+    status = bsec_do_steps(inputs, 4, bsec_outputs, &num_bsec_outputs);
+    
     if (status < BSEC_OK) {
-        result.status = (int)status;
-        return result;
+        bsec_result.status = (int)status;
+        return bsec_result;
     }
 
-    result.n_outputs = (int)n_outputs;
+    bsec_result.n_outputs = (int)num_bsec_outputs;
 
-    for (uint8_t i = 0; i < n_outputs; i++) {
-        if (outputs[i].sensor_id == BSEC_OUTPUT_IAQ) {
-            result.iaq      = outputs[i].signal;
-            result.accuracy = outputs[i].accuracy;
-        } else if (outputs[i].sensor_id == BSEC_OUTPUT_STATIC_IAQ) {
-            result.static_iaq = outputs[i].signal;
+    for (uint8_t index = 0; index < num_bsec_outputs; index++) {
+        switch (bsec_outputs[index].sensor_id)
+        {
+			case BSEC_OUTPUT_IAQ:
+                bsec_result.iaq = bsec_outputs[index].signal;
+                bsec_result.iaq_accuracy = bsec_outputs[index].accuracy;
+                break;
+            case BSEC_OUTPUT_STATIC_IAQ:
+                bsec_result.static_iaq = bsec_outputs[index].signal;
+                break;
+            case BSEC_OUTPUT_CO2_EQUIVALENT:
+                bsec_result.co2_equivalent = bsec_outputs[index].signal;
+                break;
+            case BSEC_OUTPUT_BREATH_VOC_EQUIVALENT:
+                bsec_result.breath_voc_equivalent = bsec_outputs[index].signal;
+                break;
+            case BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE:
+                bsec_result.temperature = bsec_outputs[index].signal;
+                break;
+            case BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY:
+                bsec_result.humidity = bsec_outputs[index].signal;
+                break;
+            case BSEC_OUTPUT_STABILIZATION_STATUS:
+                bsec_result.stabStatus = bsec_outputs[index].signal;
+                break;
+			case BSEC_OUTPUT_RUN_IN_STATUS:
+                bsec_result.runInStatus = bsec_outputs[index].signal;
+                break;
+            case BSEC_OUTPUT_GAS_PERCENTAGE:
+                bsec_result.gas_percentage = bsec_outputs[index].signal;
+                break;
+            case BSEC_OUTPUT_COMPENSATED_GAS:
+                bsec_result.compensated_gas = bsec_outputs[index].signal;
+                break;
+            default:
+                continue;
         }
     }
-
-    return result;
+    return bsec_result;
 }
 
 int bridge_get_state(uint8_t *state_buffer, uint32_t *state_len)

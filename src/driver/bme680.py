@@ -47,6 +47,11 @@ class BME680():
     def _encode_gas_wait_x(self, time_ms: int, time_multiplier: int) -> int:
         return time_multiplier << 6 | (time_ms & 0x3F)
 
+    def _verify_oversampling_setting(self, oversampling_setting: int) -> None:
+        if oversampling_setting not in bme680_constants.OVERSAMPLING_SETTINGS:
+            raise ValueError(f"Invalid oversampling "
+                             f"setting {oversampling_setting}")
+
     def close(self) -> None:
         self.i2c_dev.bus.close()
 
@@ -126,3 +131,18 @@ class BME680():
         return {
             "gas_res": gas_res
         }
+
+    def set_pressure_oversampling(self, oversampling_setting: int):
+        self._verify_oversampling_setting()
+        self.i2c_dev.write_register_masked(bme680_register.OSRS_P_REG,
+                                           oversampling_setting)
+
+    def set_temperature_oversampling(self, oversampling_setting: int):
+        self._verify_oversampling_setting()
+        self.i2c_dev.write_register_masked(bme680_register.OSRS_T_REG,
+                                           oversampling_setting)
+
+    def set_humidity_oversampling(self, oversampling_setting: int):
+        self._verify_oversampling_setting()
+        self.i2c_dev.write_register_masked(bme680_register.OSRS_H_REG,
+                                           oversampling_setting)

@@ -10,6 +10,9 @@ NB_CONV_REG = Register(0x71, signed=False, mask=[0x0F])
 RUN_GAS_REG = Register(0x71, signed=False, mask=[0x10], shift=4)
 GAS_VALID_REG = Register(0x2B, mask=[0x20], signed=False)
 HEAT_STAB_REG = Register(0x2B, mask=[0x10], signed=False)
+OSRS_H_REG = Register(0x72, mask=[0x07])
+OSRS_T_REG = Register(0x74, mask=[0x70], shift=5)
+OSRS_P_REG = Register(0x74, maks=[0x38], shift=3)
 
 # https://github.com/boschsensortec/BME68x_SensorAPI/blob/80ea120a8b8ac987d7d79eb68a9ed796736be845/bme68x_defs.h#L813
 PRESSURE_CAL_REG_GROUP = RegisterGroup({
