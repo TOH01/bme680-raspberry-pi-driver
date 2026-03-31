@@ -1,11 +1,10 @@
+from . import bme680_constants, bme680_register
 from .i2c import I2CDevice
 from .register_group import RegisterGroup
-from . import bme680_register
-from . import bme680_constants
 
 
 class BME680Compensation:
-    def __init__(self):
+    def __init__(self) -> None:
         # Temperature
         self.par_t1: int = 0
         self.par_t2: int = 0
@@ -85,7 +84,7 @@ class BME680Compensation:
         return t_fine / 5120.0
 
     # 3.3.2 Pressure measurement
-    def calc_press_comp(self, press_adc: int, t_fine: int) -> float:
+    def calc_press_comp(self, press_adc: int, t_fine: float) -> float:
         var1 = (t_fine / 2.0) - 64000.0
         var2 = var1 * var1 * (self.par_p6 / 131072.0)
         var2 = var2 + (var1 * self.par_p5 * 2.0)
@@ -99,7 +98,7 @@ class BME680Compensation:
             press_comp = ((press_comp - (var2 / 4096.0)) * 6250.0) / var1
             var1 = (self.par_p9 * press_comp * press_comp) / 2147483648.0
             var2 = press_comp * (self.par_p8 / 32768.0)
-            var3 = (press_comp / 256.0) ** 3 * self.par_p10 / 131072.0
+            var3 = (press_comp / 256.0) * (press_comp / 256.0) * (press_comp / 256.0) * self.par_p10 / 131072.0  # noqa: E501
             press_comp = press_comp + (var1 + var2 + var3 + (self.par_p7 * 128.0)) / 16.0  # noqa: E501
         else:
             press_comp = 0
@@ -107,20 +106,15 @@ class BME680Compensation:
         return press_comp
 
     # 3.3.3 Humidity measurement
-    def calc_hum_comp(self, hum_adc: int, temp_comp: int) -> float:
-        var1 = hum_adc - ((self.par_h1 * 16.0) + ((self.par_h3 / 2.0) * temp_comp))  # noqa: E501
+    def calc_hum_comp(self, hum_adc: int, temp_comp: float) -> float:
+        var1 = hum_adc - ((self.par_h1 * 16.0) + ((self.par_h3 / 2.0) * temp_comp))
         var2 = var1 * ((self.par_h2 / 262144.0) * (1.0 + ((self.par_h4 / 16384.0) * temp_comp) + ((self.par_h5 / 1048576.0) * temp_comp * temp_comp)))  # noqa: E501
         var3 = self.par_h6 / 16384.0
         var4 = self.par_h7 / 2097152.0
         hum_comp = var2 + ((var3 + (var4 * temp_comp)) * var2 * var2)
 
         # https://github.com/boschsensortec/BME68x_SensorAPI/blob/80ea120a8b8ac987d7d79eb68a9ed796736be845/bme68x.c#L1093
-        if hum_comp > 100.0:
-            hum_comp = 100.0
-        elif hum_comp < 0.0:
-            hum_comp = 0.0
-
-        return hum_comp
+        return max(0.0, min(100.0, hum_comp))
 
     # 3.3.5 Gas sensor heating and measurement
     def calc_gas_res_heat_val(self, amb_temp: int, target_temp: int) -> int:
@@ -129,12 +123,10 @@ class BME680Compensation:
         var3 = self.par_g3 / 1024.0
         var4 = var1 * (1.0 + (var2 * target_temp))
         var5 = var4 + (var3 * amb_temp)
-        res_heat_x = int((3.4 * ((var5 * (4.0 / (4.0 + self.res_heat_range)) * (1.0/(1.0 + (self.res_heat_val * 0.002)))) - 25)))  # noqa: E501
-        res_heat_int8 = 0xFF & res_heat_x
-        return res_heat_int8
+        res_heat_x = int(3.4 * ((var5 * (4.0 / (4.0 + self.res_heat_range)) * (1.0/(1.0 + (self.res_heat_val * 0.002)))) - 25))  # noqa: E501
+        return 0xFF & res_heat_x
 
     # 3.4.1 Gas sensor resistance readout
     def calc_gas_res(self, gas_adc: int, gas_range: int) -> float:
         var1 = (1340.0 + 5.0 * self.range_switching_error) * bme680_constants.const_array1[gas_range]  # noqa: E501
-        gas_res = var1 * bme680_constants.const_array2[gas_range] / (gas_adc - 512.0 + var1)  # noqa: E501
-        return gas_res
+        return var1 * bme680_constants.const_array2[gas_range] / (gas_adc - 512.0 + var1)  # noqa: E501

@@ -1,22 +1,39 @@
-from . import bme680_constants
-from . import bme680_register
-from .i2c import I2CDevice
-from .bme680_compensation import BME680Compensation
 import time
+from typing import TypedDict
+
+from . import bme680_constants, bme680_register
+from .bme680_compensation import BME680Compensation
+from .i2c import I2CDevice
 from .register import Register
 
 
-class BME680():
-    def __init__(self, bus=1):
+class TPHResult(TypedDict):
+    temperature: float
+    pressure:    float
+    humidity:    float
+
+
+class BME680:
+    def __init__(self, bus: int = 1) -> None:
         self._bus = bus
         self._connect()
         self.compensation = BME680Compensation.from_device(self.i2c_dev)
 
-    def __enter__(self) -> "BME680":
-        return self
+    @staticmethod
+    def calc_gas_wait_params(duration_ms: int) -> tuple[int, int]:
+        for multiplier_bits, multiplier_val in zip(
+            bme680_constants.HEATER_WAIT_MULTIPLIERS,
+            bme680_constants.HEATER_WAIT_MULTIPLIERS_VALUES, strict=True,
+        ):
 
-    def __exit__(self, *args) -> None:
-        self.close()
+            base = round(duration_ms / multiplier_val)
+            if base <= bme680_constants.MAX_HEATER_WAIT_VALUE:
+                return base, multiplier_bits
+
+        return (
+            bme680_constants.MAX_HEATER_WAIT_VALUE,
+            bme680_constants.HEATER_WAIT_MULTIPLIER_64,
+        )
 
     def _check_chip_id(self) -> bool:
         chip_id = self.i2c_dev.read_register(bme680_register.CHIP_ID_REG)
@@ -29,6 +46,7 @@ class BME680():
                 continue
             if self._check_chip_id():
                 return
+            self.i2c_dev.bus.close()
         raise RuntimeError(f"No BME680 found on bus {self._bus}")
 
     def _verify_heater_profile(self, profile_id: int, time_ms: int,
@@ -49,10 +67,9 @@ class BME680():
 
     def _verify_oversampling_setting(self, oversampling_setting: int) -> None:
         if oversampling_setting not in bme680_constants.OVERSAMPLING_SETTINGS:
-            raise ValueError(f"Invalid oversampling "
-                             f"setting {oversampling_setting}")
+            raise ValueError(f"Invalid oversampling setting {oversampling_setting}")
 
-    def _verifiy_iir_coefficient(self, coefficient: int) -> None:
+    def _verify_iir_coefficient(self, coefficient: int) -> None:
         if coefficient not in bme680_constants.IIR_FILTER_COEFFICIENTS:
             raise ValueError(f"Invalid IIR coefficient {coefficient}")
 
@@ -62,7 +79,7 @@ class BME680():
     def set_forced_mode(self) -> None:
         self.i2c_dev.write_register_masked(bme680_register.CTRL_MEAS_REG, 0x01)
 
-    def get_compensated_tph(self) -> dict[str, float]:
+    def get_compensated_tph(self) -> TPHResult:
         regs = self.i2c_dev.read_register_group(bme680_register.ADC_REG_GROUP)
         temp_adc = regs["temp_adc"]
         press_adc = regs["press_adc"]
@@ -76,7 +93,7 @@ class BME680():
         return {
             "temperature": t_comp,
             "pressure": p_comp,
-            "humidity": h_comp
+            "humidity": h_comp,
         }
 
     def wait_for_tph_measurement(self, timeout_ms: int = 500) -> bool:
@@ -88,12 +105,10 @@ class BME680():
         return False
 
     def get_res_heat_val(self, ambient_temp: int, target_temp: int) -> int:
-        return self.compensation.calc_gas_res_heat_val(ambient_temp,
-                                                       target_temp)
+        return self.compensation.calc_gas_res_heat_val(ambient_temp, target_temp)
 
     def configure_heater_profile(self, profile_id: int, time_ms: int,
-                                 time_multiplier: int,
-                                 res_heat_val: int) -> None:
+                                 time_multiplier: int, res_heat_val: int) -> None:
 
         self._verify_heater_profile(profile_id, time_ms, time_multiplier)
         gas_wait_x_val = bme680_constants.GAS_WAIT_X_START_ADDR + profile_id
@@ -102,14 +117,12 @@ class BME680():
         res_heat_x_reg = Register(res_heat_x_val, signed=False)
 
         self.i2c_dev.write_register(gas_wait_x_reg,
-                                    self._encode_gas_wait_x(time_ms,
-                                                            time_multiplier))
+                                    self._encode_gas_wait_x(time_ms, time_multiplier))
 
         self.i2c_dev.write_register(res_heat_x_reg, res_heat_val)
 
     def activate_heater_profile(self, profile_id: int) -> None:
-        self.i2c_dev.write_register_masked(bme680_register.NB_CONV_REG,
-                                           profile_id)
+        self.i2c_dev.write_register_masked(bme680_register.NB_CONV_REG, profile_id)
 
     def activate_gas_conversion(self) -> None:
         self.i2c_dev.write_register_masked(bme680_register.RUN_GAS_REG, 0x1)
@@ -117,45 +130,56 @@ class BME680():
     def wait_for_gas_measurement(self, timeout_ms: int = 500) -> bool:
         deadline = time.monotonic() + timeout_ms / 1000
         while time.monotonic() < deadline:
-            heat_stable = self.i2c_dev.read_register(
-                bme680_register.HEAT_STAB_REG)
-            gas_valid = self.i2c_dev.read_register(
-                bme680_register.GAS_VALID_REG)
+            heat_stable = self.i2c_dev.read_register(bme680_register.HEAT_STAB_REG)
+            gas_valid = self.i2c_dev.read_register(bme680_register.GAS_VALID_REG)
             if heat_stable and gas_valid:
                 return True
             time.sleep(0.01)
         return False
 
-    def get_gas_res(self) -> dict[str, float]:
+    def get_gas_res(self) -> float:
         regs = self.i2c_dev.read_register_group(bme680_register.ADC_REG_GROUP)
         gas_adc = regs["gas_adc"]
         gas_range = regs["gas_range"]
-        gas_res = self.compensation.calc_gas_res(gas_adc, gas_range)
+        return self.compensation.calc_gas_res(gas_adc, gas_range)
 
-        return {
-            "gas_res": gas_res
-        }
-
-    def set_pressure_oversampling(self, oversampling_setting: int):
+    def set_pressure_oversampling(self, oversampling_setting: int) -> None:
         self._verify_oversampling_setting(oversampling_setting)
         self.i2c_dev.write_register_masked(bme680_register.OSRS_P_REG,
                                            oversampling_setting)
 
-    def set_temperature_oversampling(self, oversampling_setting: int):
+    def set_temperature_oversampling(self, oversampling_setting: int) -> None:
         self._verify_oversampling_setting(oversampling_setting)
         self.i2c_dev.write_register_masked(bme680_register.OSRS_T_REG,
                                            oversampling_setting)
 
-    def set_humidity_oversampling(self, oversampling_setting: int):
+    def set_humidity_oversampling(self, oversampling_setting: int) -> None:
         self._verify_oversampling_setting(oversampling_setting)
         self.i2c_dev.write_register_masked(bme680_register.OSRS_H_REG,
                                            oversampling_setting)
 
-    def soft_reset(self):
+    def soft_reset(self) -> None:
         self.i2c_dev.write_register(bme680_register.RESET_REG,
                                     bme680_constants.I2C_SOFT_RESET_REG_VALUE)
 
-    def set_iir_filter(self, coefficient: int):
-        self._verifiy_iir_coefficient(coefficient)
+    def set_iir_filter(self, coefficient: int) -> None:
+        self._verify_iir_coefficient(coefficient)
         self.i2c_dev.write_register_masked(bme680_register.CONFIG_FILTER_REG,
                                            coefficient)
+
+    def configure_default_heater(self, ambient_temp: int) -> None:
+        base_ms, multiplier = self.calc_gas_wait_params(
+            bme680_constants.DEFAULT_HEATER_WAIT_MS,
+        )
+        res_heat = self.get_res_heat_val(
+            ambient_temp, bme680_constants.DEFAULT_HEATER_TARGET_TEMP,
+        )
+        self.configure_heater_profile(bme680_constants.DEFAULT_HEATER_PROFILE,
+            base_ms, multiplier, res_heat,
+        )
+        self.activate_heater_profile(bme680_constants.DEFAULT_HEATER_PROFILE)
+
+    def configure_default_oversampling(self) -> None:
+        self.set_humidity_oversampling(bme680_constants.DEFAULT_HUMIDITY_OVERSAMPLING)
+        self.set_temperature_oversampling(bme680_constants.DEFAULT_TEMPERATURE_OVERSAMPLING)
+        self.set_pressure_oversampling(bme680_constants.DEFAULT_PRESSURE_OVERSAMPLING)

@@ -1,9 +1,8 @@
 #ifndef BSEC_WRAPPER_H
 #define BSEC_WRAPPER_H
 
-#include <stdint.h>
-
 #define NUM_USED_OUTPUTS 10
+#define NUM_USED_INPUTS  4
 
 typedef struct bsec_result {
     int     n_outputs;
@@ -14,14 +13,15 @@ typedef struct bsec_result {
     float   breath_voc_equivalent;
     float   temperature;
 	float   humidity;
-    float   stabStatus;
-    float   runInStatus;
+    float   stab_status;
+    float   run_in_status;
     float   gas_percentage;
     float   compensated_gas;
     uint8_t iaq_accuracy;
 } bsec_result_t;
 
 typedef struct bsec_settings {
+    int      status;
     int64_t  next_call_ns;
     uint16_t heater_temperature;
     uint16_t heater_duration;
@@ -35,7 +35,7 @@ typedef struct bsec_settings {
 
 int             init_bridge(void);
 bsec_settings_t bridge_sensor_control(int64_t timestamp_ns);
-bsec_result_t   bsec_compute(int64_t timestamp_ns, float temperature, float humidity, float pressure, float gas_resistance);
+bsec_result_t   bsec_compute(int64_t timestamp_ns, float temperature, float humidity, float pressure, float gas_resistance, uint32_t process_data);
 int             bridge_get_state(uint8_t *state_buffer, uint32_t *state_len);
 int             bridge_set_state(uint8_t *state_buffer, uint32_t state_len);
 uint32_t        bridge_max_state_size(void);
