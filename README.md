@@ -1,66 +1,43 @@
 # BME680 Raspberry Pi Driver
 
-A pure Python driver for the Bosch BME680 environmental sensor on Raspberry Pi 4/5, with a C bridge to the proprietary Bosch BSEC library for Indoor Air Quality (IAQ) computation.
+A pure Python driver for the Bosch BME680 environmental sensor on Raspberry Pi, with a C bridge to the proprietary Bosch BSEC library for accurate Indoor Air Quality (IAQ) computation.
 
-## Features
+> **Tested on Raspberry Pi 4 and 5 · Raspberry Pi OS · Python 3.13.5 · GCC 14.2.0 · BSEC 2.6.1.0**
 
-- Direct I2C register access with no external driver dependencies beyond `smbus2`
-- Temperature, pressure, humidity, and gas resistance readings
-- Compensation algorithms implemented per the BME680 datasheet
-- BSEC 2.x integration for IAQ index calculation via a lightweight C bridge
-- Automatic BSEC state persistence and restore across restarts
+---
 
-## Hardware Requirements
+## What this is
 
-- Raspberry Pi 4 or 5
-- BME680 sensor connected via I2C (default address `0x77`, falls back to `0x76`)
-- I2C enabled on the Pi (`sudo raspi-config` → Interface Options → I2C)
+The BME680 measures temperature, pressure, humidity, and gas resistance. On its own, the raw gas resistance value is not very useful. Bosch's BSEC library turns it into a calibrated IAQ index, CO₂ equivalent, breath VOC equivalent, and more — but BSEC is a proprietary closed-source binary, so integrating it requires a small C bridge.
+
+This project gives you:
+
+- A **pure Python I2C driver** for the BME680, with compensation algorithms implemented directly from the datasheet. No dependency on Adafruit or other third-party driver libraries — only `smbus2`.
+- A **lightweight C bridge** (`libbsec_wrapper.so`) that wraps BSEC and exposes it to Python via `ctypes`.
+- A **`BsecIAQ` Python class** that drives the full BSEC measurement loop, handles state persistence, and delivers typed results to a callback of your choice.
+- A **ready-to-run web dashboard** that streams live air quality data to a browser over SSE — no frontend build step required.
+
+---
 
 ## Wiring
 
-Tested with the Joy-IT BME680 breakout board. Connect four pins:
-
-| Raspberry Pi 5 | BME680 |
-|-----------------|--------|
-| Pin 1 (3.3V)   | VCC    |
-| Pin 3 (SDA)    | SDA    |
-| Pin 5 (SCL)    | SCL    |
-| Pin 6 (GND)    | GND    |
-
-Leave SDO and CS unconnected — the Joy-IT board pulls SDO high, setting the I2C address to `0x77`. Other breakout boards may wire these differently; if the sensor isn't found, check whether SDO needs to be tied high or low for your board.
+Tested with the Joy-IT BME680 breakout board over I2C.
 
 ![Wiring diagram](docs/wiring.svg)
 
-## Project Structure
+Leave SDO and CS unconnected. The Joy-IT board pulls SDO high, giving an I2C address of `0x77`. If the sensor is not found at startup, the driver automatically retries at `0x76`.
 
+Enable I2C on the Pi if you haven't already:
+
+```bash
+sudo raspi-config   # Interface Options → I2C → Enable
 ```
-.
-├── docs/
-│   └── wiring.svg              # Wiring diagram
-├── src/
-│   ├── example.py              # Usage example
-│   ├── driver/                  # Python BME680 driver
-│   │   ├── bme680.py
-│   │   ├── bme680_compensation.py
-│   │   ├── bme680_constants.py
-│   │   ├── bme680_register.py
-│   │   ├── i2c.py
-│   │   ├── register.py
-│   │   └── register_group.py
-│   └── bsec_bridge/             # BSEC C bridge
-│       ├── bsecIAQ.py
-│       ├── bsec_wrapper.c
-│       ├── bsec_wrapper.h
-│       └── compile.sh
-├── bsec/                        # Bosch BSEC library (not included, see below)
-│   └── algo/
-│       └── bsec_IAQ/
-│           ├── inc/
-│           └── bin/
-└── README.md
-```
+
+---
 
 ## Setup
+
+> **All steps below must be run on the Raspberry Pi itself.** The BSEC bridge is compiled for ARM and links against the ARM static library — it cannot be cross-compiled on a different machine.
 
 ### 1. Install Python dependencies
 
@@ -68,17 +45,33 @@ Leave SDO and CS unconnected — the Joy-IT board pulls SDO high, setting the I2
 pip install smbus2
 ```
 
+For the web dashboard example, also install Flask:
+
+```bash
+pip install flask pyopenssl
+```
+
 ### 2. Obtain the Bosch BSEC library
 
-The BSEC library is proprietary and cannot be redistributed. Download it directly from Bosch:
+BSEC is proprietary and cannot be redistributed here. Download it from Bosch directly:
 
-1. Go to [https://www.bosch-sensortec.com/software-tools/software/bme680-software-bsec/](https://www.bosch-sensortec.com/software-tools/software/bme680-software-bsec/)
-2. Download BSEC 2.x (tested against **BSEC 2.6.1.0**)
-3. Extract and copy the contents so that the following paths exist:
-   - `bsec/algo/bsec_IAQ/inc/` (header files)
-   - `bsec/algo/bsec_IAQ/bin/RaspberryPi/PiFour_Armv8/libalgobsec.a` (static library)
+1. Go to [bosch-sensortec.com/software-tools/software/bme680-software-bsec](https://www.bosch-sensortec.com/software-tools/software/bme680-software-bsec/)
+2. Download **BSEC 2.x** (tested against BSEC 2.6.1.0)
+3. Unzip the archive directly into the repo root:
 
-The `PiFour_Armv8` binary works for both Raspberry Pi 4 and Pi 5.
+```bash
+unzip path/to/BSEC_2.x.x.x.zip -d /path/to/repo/bsec
+```
+
+After extraction, the following paths must exist:
+
+```
+bsec/algo/bsec_IAQ/inc/                                             ← header files
+bsec/algo/bsec_IAQ/bin/RaspberryPi/PiFour_Armv8/libalgobsec.a       ← static library
+bsec/algo/bsec_IAQ/config/bme680/bme680_iaq_33v_3s_28d/             ← config files
+```
+
+The `PiFour_Armv8` binary works on both Raspberry Pi 4 and Pi 5.
 
 ### 3. Compile the BSEC bridge
 
@@ -88,66 +81,75 @@ chmod +x compile.sh
 ./compile.sh
 ```
 
-This uses `gcc` (pre-installed on Raspberry Pi OS) to produce `libbsec_wrapper.so` in the `src/` directory, right next to `example.py`.
+This produces `src/libbsec_wrapper.so` using GCC.
 
-### 4. Run
+---
+
+## Examples
+
+The `src/` directory contains three example scripts that demonstrate how the driver and BSEC bridge can be used. They are provided as starting points — not as production-ready applications. Run them from `src/`:
 
 ```bash
 cd src
+```
+
+### `example.py` — driver only
+
+No BSEC required. Reads temperature, pressure, humidity, and raw gas resistance in a loop. Useful for quickly verifying that wiring and I2C are working.
+
+```bash
 python example.py
 ```
 
-Expected output:
-
 ```
-BSEC not ready, skipping
-Temp: 24.96 °C  Press: 101568.32 Pa  Hum: 40.22 %  IAQ: 180.7  Accuracy: 1
-Temp: 25.00 °C  Press: 101561.82 Pa  Hum: 40.19 %  IAQ: 200.0  Accuracy: 1
-Temp: 25.02 °C  Press: 101559.92 Pa  Hum: 40.13 %  IAQ: 201.4  Accuracy: 1
-...
+Raw Temp: 24.83 °C  Raw Press: 101561.42 Pa  Raw Hum: 41.05 %  Raw Gas Res: 42183.11 Ohm
 ```
 
-Press `Ctrl+C` to stop. The BSEC state is saved automatically on exit and restored on the next run, preserving calibration progress.
+### `bsec_example.py` — full BSEC output in the terminal
 
-## BSEC Calibration and Burn-In
+Requires the compiled bridge. Runs the full BSEC measurement loop and prints all outputs to stdout. Calibration state is saved every 5 minutes and on exit, and restored on the next run.
 
-The BSEC algorithm requires time to produce accurate IAQ readings. There are a few things to be aware of:
-
-**Accuracy levels** — The `Accuracy` field in the output indicates calibration status:
-- `0` — Stabilizing, output unreliable
-- `1` — Low accuracy, background calibration in progress
-- `2` — Medium accuracy
-- `3` — Fully calibrated
-
-**Initial burn-in** — Per the Bosch documentation, the BME680 gas sensor requires a burn-in period of approximately 48 hours of continuous operation before gas resistance readings fully stabilize. During this period, IAQ values will drift and should not be considered reliable.
-
-**Ongoing calibration** — Even after burn-in, BSEC continuously adjusts its baseline. The algorithm expects to see both clean and polluted air over time to establish a meaningful reference. A sensor running in consistently clean air may take longer to reach accuracy 3.
-
-**State persistence** — The example saves BSEC state every 5 minutes and on shutdown. This means you do not lose calibration progress across restarts. Without state persistence, the algorithm restarts from scratch each time.
-
-**First reading** — The very first BSEC call after startup may return no output (`BSEC not ready, skipping`). This is normal — the algorithm needs at least one data point before it can produce IAQ values.
-
-For full details, refer to the [BME680 datasheet](https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme680-ds001.pdf) and the BSEC integration guide included in the BSEC download.
-
-## Using the Driver Without BSEC
-
-The Python driver works independently of BSEC. If you only need temperature, pressure, humidity, and raw gas resistance:
-
-```python
-from driver import BME680
-
-with BME680() as bme680:
-    bme680.set_forced_mode()
-    bme680.wait_for_tph_measurement()
-    tph = bme680.get_compensated_tph()
-
-    print(f"Temperature: {tph['temperature']:.2f} °C")
-    print(f"Pressure:    {tph['pressure']:.2f} Pa")
-    print(f"Humidity:    {tph['humidity']:.2f} %")
+```bash
+python bsec_example.py
 ```
+
+```
+Temp: 24.96 °C  Hum: 40.22 %  IAQ: 54.3  sIAQ: 50.1  CO2: 612.4 ppm  bVOC: 0.502 ppm  Gas%: 31.2  Acc: 1  Stab: 1  RunIn: 0
+```
+
+### `bsec_web_api_example.py` — live dashboard in the browser
+
+Starts a local HTTPS server and streams sensor data to a minimal, mobile-friendly dashboard via Server-Sent Events. No WebSocket, no frontend build step.
+
+```bash
+python bsec_web_api_example.py --room "Living room"
+```
+
+Then open `https://<raspberry-pi-ip>:8080` in your browser. The `--room` flag sets the room name shown in the UI (default: `Living room`).
+
+![Web dashboard](docs/web_api.png)
+
+---
+
+## BSEC calibration
+
+BSEC runs in **Low Power (LP) mode**, taking one sample every 3 seconds. Accuracy improves over time — here is what to expect:
+
+| Accuracy | Meaning |
+|---|---|
+| `0` | Stabilising |
+| `1` | Low accuracy |
+| `2` | Medium accuracy |
+| `3` | Fully calibrated |
+
+**Burn-in period** — the gas sensor needs roughly 48 hours of continuous operation before readings fully stabilise. IAQ values during this window will drift and should not be treated as reliable.
+
+**State persistence** — calibration state is saved every 5 minutes and on shutdown, so progress is not lost across restarts.
+
+---
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+This project is licensed under the **MIT License** — see [LICENSE](LICENSE) for details.
 
-The Bosch BSEC library has its own proprietary license. Refer to the license terms included in the BSEC download.
+The Bosch BSEC library is proprietary. Refer to the license terms included in the BSEC download package.
