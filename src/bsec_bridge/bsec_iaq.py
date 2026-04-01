@@ -22,6 +22,7 @@ class BsecResult(TypedDict):
     gas_percentage: float
     compensated_gas: float
     iaq_accuracy: int
+    timestamp: int
 
 
 class BsecSettings(TypedDict):
@@ -167,6 +168,7 @@ class BsecIAQ:
             "gas_percentage":        result.gas_percentage,
             "compensated_gas":       result.compensated_gas,
             "iaq_accuracy":          result.iaq_accuracy,
+            "timestamp":             timestamp_ns,
         }
 
     def save_state(self, path: str) -> None:
