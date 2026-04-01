@@ -45,7 +45,7 @@ def main() -> None:
     def on_result(result: dict) -> None:
         _write_latest(result)
 
-        if result["iaq_accuracy"] > 2:
+        if result["iaq_accuracy"] > 2 and result["run_in_status"] != 0:
             logger.maybe_log(
                 result["temperature"],
                 result["humidity"],
