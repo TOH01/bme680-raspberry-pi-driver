@@ -43,9 +43,9 @@ def main() -> None:
     time.sleep(0.1)
 
     def on_result(result: dict) -> None:
+        result["timestamp"] = time.time()
         _write_latest(result)
-
-        if result["iaq_accuracy"] > 2 and result["run_in_status"] != 0:
+        if result.get("iaq_accuracy", 0) > 2 and result.get("run_in_status") != 0:
             logger.maybe_log(
                 result["temperature"],
                 result["humidity"],

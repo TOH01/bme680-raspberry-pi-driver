@@ -1,17 +1,17 @@
 """
 Binary data logger for BME680 air-quality readings.
 
-Record layout - 9 bytes, little-endian timestamp:
+Record layout - 10 bytes, little-endian timestamp:
 
     Bytes 0-3   uint32 LE   Unix timestamp (seconds)
-    Bytes 4-8   40-bit packed bitfield (big-endian):
-                [temp*10 : 11 signed][hum : 7][iaq : 9][co2÷2 : 13]
+    Bytes 4-9   43-bit packed bitfield (big-endian, 5 spare bits):
+                [temp*10 : 11 signed][hum*10 : 10][iaq : 9][co2÷2 : 13]
 
     Field       Bits    Stored as           Range               Resolution
     ─────────   ────    ─────────           ─────               ──────────
     Timestamp   32      uint32              until 2106          1 s
     Temperature 11      int11 (*10)         -102.4 … +102.3 °C  0.1 °C
-    Humidity     7      uint7               0 - 127 %           1 %
+    Humidity    10      uint10 (*10)        0 - 102.3 %          0.1 %
     IAQ          9      uint9               0 - 511             1
     CO₂         13      uint13 (÷2)         0 - 16 382 ppm      2 ppm
 
@@ -26,7 +26,7 @@ import threading
 import time
 from pathlib import Path
 
-RECORD = 9
+RECORD = 10
 
 
 class DataLogger:
@@ -43,31 +43,33 @@ class DataLogger:
         t = max(-1024, min(1023, round(temp * 10)))
         if t < 0:
             t = t & 0x7FF
-        h = max(0, min(127, round(hum)))
+        h = max(0, min(1023, round(hum * 10)))
         i = max(0, min(511, round(iaq)))
         c = max(0, min(8191, round(co2 / 2)))
 
-        bits = (t << 29) | (h << 22) | (i << 13) | c
+        bits = (t << 32) | (h << 22) | (i << 13) | c
+        b5 = (bits >> 40) & 0xFF
         b4 = (bits >> 32) & 0xFF
         b3 = (bits >> 24) & 0xFF
         b2 = (bits >> 16) & 0xFF
         b1 = (bits >> 8) & 0xFF
         b0 = bits & 0xFF
 
-        return struct.pack("<I", ts) + bytes([b4, b3, b2, b1, b0])
+        return struct.pack("<I", ts) + bytes([b5, b4, b3, b2, b1, b0])
 
     @staticmethod
     def unpack(buf: bytes) -> dict:
         ts = struct.unpack("<I", buf[0:4])[0]
-        bits = (buf[4] << 32) | (buf[5] << 24) | (buf[6] << 16) | (buf[7] << 8) | buf[8]
+        bits = ((buf[4] << 40) | (buf[5] << 32) | (buf[6] << 24)
+                | (buf[7] << 16) | (buf[8] << 8) | buf[9])
 
-        t_raw = (bits >> 29) & 0x7FF
+        t_raw = (bits >> 32) & 0x7FF
         # sign-extend 11-bit
         if t_raw & 0x400:
             t_raw -= 0x800
         temp = t_raw / 10.0
 
-        hum = (bits >> 22) & 0x7F
+        hum = ((bits >> 22) & 0x3FF) / 10.0
         iaq = (bits >> 13) & 0x1FF
         co2 = (bits & 0x1FFF) * 2
 
