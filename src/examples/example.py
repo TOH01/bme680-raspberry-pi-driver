@@ -5,6 +5,10 @@ from driver import BME680, bme680_constants
 
 if __name__ == "__main__":
     bme680 = BME680()
+    
+    bme680.soft_reset()
+    time.sleep(0.1)
+    
     bme680.activate_gas_conversion()
 
     last_temp = bme680_constants.DEFAULT_INITIAL_GAS_AMB_TEMP

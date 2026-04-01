@@ -82,7 +82,7 @@ class DataLogger:
             if now - self._last_log < self.interval:
                 return False
             record = self.pack(int(now), temp, hum, iaq, co2)
-            with open(self.path, "ab") as f:
+            with Path(self.path).open("ab") as f:
                 f.write(record)
             self._last_log = now
             return True
@@ -95,7 +95,7 @@ class DataLogger:
             return None
         if size < RECORD:
             return None
-        with open(self.path, "rb") as f:
+        with Path(self.path).open("rb") as f:
             f.seek(size - RECORD)
             return self.unpack(f.read(RECORD))
 
@@ -112,7 +112,7 @@ class DataLogger:
 
         offset -= offset % RECORD
 
-        with open(self.path, "rb") as f:
+        with Path(self.path).open("rb") as f:
             f.seek(offset)
             raw = f.read()
 
@@ -127,7 +127,6 @@ class DataLogger:
         return records
 
     def read_all(self) -> list[dict]:
-        """Read every record in the file."""
         raw = self.path.read_bytes()
         records: list[dict] = []
         pos = 0

@@ -1,17 +1,3 @@
-#!/usr/bin/python3
-"""
-Air-quality web server.
-
-Serves:
-  /              Live dashboard (SSE-driven, original design)
-  /events        Server-Sent Events from latest.json
-  /history       History dashboard (chart + stats)
-  /history/data  JSON API for historical data from airquality.bin
-
-Runs as a standalone systemd service, fully independent of sensor.py.
-Detects sensor staleness by checking the timestamp in latest.json.
-"""
-
 import argparse
 import json
 import time
@@ -19,7 +5,7 @@ from pathlib import Path
 
 from flask import Flask, Response, request
 
-from datalogger import DataLogger
+from examples.web_api.datalogger import DataLogger
 
 _DIR = Path(__file__).parent
 LOG = _DIR / "airquality.bin"
@@ -31,8 +17,6 @@ _html: str = ""
 _history_html: str = ""
 
 
-# ── helpers ──────────────────────────────────────────────────────
-
 def _read_latest() -> dict | None:
     """Read the latest sensor reading written by sensor.py."""
     try:
@@ -40,8 +24,6 @@ def _read_latest() -> dict | None:
     except (OSError, json.JSONDecodeError):
         return None
 
-
-# ── routes ───────────────────────────────────────────────────────
 
 @app.route("/")
 def index():

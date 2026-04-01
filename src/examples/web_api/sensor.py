@@ -1,17 +1,17 @@
-#!/usr/bin/python3
 import argparse
 import json
 import os
 import tempfile
+import time
 from pathlib import Path
 
 from bsec_bridge import BsecIAQ
-from datalogger import DataLogger
 from driver import BME680
+from examples.web_api.datalogger import DataLogger
 
 _DIR = Path(__file__).parent
-LIB = _DIR / "libbsec_wrapper.so"
-STATE = _DIR / "bsec_state.bin"
+LIB = _DIR.parent / "libbsec_wrapper.so"
+STATE = _DIR.parent / "bsec_state.bin"
 LOG = _DIR / "airquality.bin"
 LATEST = _DIR / "latest.json"
 
@@ -21,7 +21,7 @@ def _write_latest(result: dict) -> None:
         fd, tmp = tempfile.mkstemp(dir=_DIR, suffix=".tmp")
         with os.fdopen(fd, "w") as f:
             json.dump(result, f)
-        os.replace(tmp, LATEST)
+        Path(tmp).replace(LATEST)
     except OSError:
         pass
 
@@ -39,6 +39,9 @@ def main() -> None:
     bme = BME680()
     bsec = BsecIAQ(lib_path=LIB)
 
+    bme.soft_reset()
+    time.sleep(0.1)
+
     def on_result(result: dict) -> None:
         _write_latest(result)
 
@@ -50,12 +53,9 @@ def main() -> None:
                 result["co2_equivalent"],
             )
 
-    print(f"[sensor] starting — logging every {args.log_interval}s to {LOG}")
-
     try:
         bsec.run(bme, on_result, state_path=STATE)
     except KeyboardInterrupt:
-        print("[sensor] interrupted, saving BSEC state")
         bsec.save_state(STATE)
     finally:
         bme.close()

@@ -1,5 +1,5 @@
 [tool.ruff]
-exclude = ["**/example.py", "**/bsec_example.py", "**/bsec_web_api_example.py"]
+exclude = ["**/example.py", "**/bsec_example.py"]
 
 [tool.ruff.lint]
 select = ["ALL"]
