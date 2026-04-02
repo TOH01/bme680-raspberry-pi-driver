@@ -11,7 +11,7 @@ from examples.web_api.datalogger import DataLogger
 
 _DIR = Path(__file__).parent
 LIB = _DIR.parent / "libbsec_wrapper.so"
-STATE = _DIR.parent / "bsec_state.bin"
+STATE = _DIR / "bsec_state.bin"
 LOG = _DIR / "airquality.bin"
 LATEST = _DIR / "latest.json"
 
@@ -43,7 +43,7 @@ def main() -> None:
     time.sleep(0.1)
 
     def on_result(result: dict) -> None:
-        result["timestamp"] = result["timestamp"] / 1e9
+        result["timestamp"] = time.time()
         _write_latest(result)
         if result.get("iaq_accuracy", 0) > 2 and result.get("run_in_status") != 0:
             logger.maybe_log(
