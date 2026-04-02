@@ -34,7 +34,8 @@ class DataLogger:
         self.path = Path(path)
         self.interval = interval
         self._lock = threading.Lock()
-        self._last_log: float = 0.0
+        last_record = self.read_last()
+        self._last_log: float = last_record["ts"] if last_record else 0.0
         if not self.path.exists():
             self.path.touch()
 
