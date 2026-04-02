@@ -43,7 +43,7 @@ def main() -> None:
     time.sleep(0.1)
 
     def on_result(result: dict) -> None:
-        result["timestamp"] = time.time()
+        result["timestamp"] = result["timestamp"] / 1e9
         _write_latest(result)
         if result.get("iaq_accuracy", 0) > 2 and result.get("run_in_status") != 0:
             logger.maybe_log(

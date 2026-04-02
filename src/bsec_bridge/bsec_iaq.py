@@ -222,7 +222,7 @@ class BsecIAQ:
             self.load_state(state_path)
 
         last_temp = initial_amb_temp
-        last_save = time.monotonic()
+        last_save = time.monotonic_ns()
 
         while True:
             timestamp_ns = time.monotonic_ns()
@@ -253,11 +253,11 @@ class BsecIAQ:
                 last_temp = int(tph["temperature"])
                 callback(result)
 
-            time_since_save = time.monotonic() - last_save
+            time_since_save = timestamp_ns - last_save
             if state_path and time_since_save >= bsec_constants.STATE_SAVE_INTERVAL:
                 self.save_state(state_path)
-                last_save = time.monotonic()
+                last_save = timestamp_ns
 
-            wait_ns = settings["next_call_ns"] - time.monotonic_ns()
+            wait_ns = settings["next_call_ns"] - timestamp_ns
             if wait_ns > 0:
                 time.sleep(wait_ns / 1_000_000_000)
