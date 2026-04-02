@@ -1,4 +1,5 @@
 import ctypes
+import logging
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -9,6 +10,14 @@ from driver.bme680 import TPHResult
 
 from . import bsec_constants
 
+logger = logging.getLogger(__name__)
+
+def check_return(status : int, fn_name : str) -> None:
+    return_formatted = f"{bsec_constants.RETURN_CODES[status]} ({status})"
+    if status < bsec_constants.OK:
+        raise RuntimeError(f"bsec_wrapper.c - {fn_name} failed with {return_formatted}")
+    if status !=  bsec_constants.OK:
+        logger.warning(f"bsec_wrapper.c - {fn_name} returned {return_formatted}")
 
 class BsecResult(TypedDict):
     iaq: float
@@ -38,7 +47,7 @@ class BsecSettings(TypedDict):
 
 
 class _BsecResult(ctypes.Structure):
-    _fields_ = [ # noqa: RUF012
+    _fields_ = [
         ("n_outputs",             ctypes.c_int),
         ("status",                ctypes.c_int),
         ("iaq",                   ctypes.c_float),
@@ -56,7 +65,7 @@ class _BsecResult(ctypes.Structure):
 
 
 class _BsecSettings(ctypes.Structure):
-    _fields_ = [ # noqa: RUF012
+    _fields_ = [
         ("status",                   ctypes.c_int),
         ("next_call_ns",             ctypes.c_int64),
         ("heater_temperature",       ctypes.c_uint16),
@@ -135,8 +144,7 @@ class BsecIAQ:
 
     def start_bsec(self) -> None:
         status = self._lib.init_bridge()
-        if status < bsec_constants.OK:
-            raise RuntimeError(f"init_bridge failed with status {status}")
+        check_return(status, "init_bridge()")
 
     def compute(self, timestamp_ns: int, tph_result: TPHResult, gas_resistance: float,
                 process_data: int) -> BsecResult | None:
@@ -150,10 +158,10 @@ class BsecIAQ:
             ctypes.c_uint32(process_data),
         )
 
-        if result.status < bsec_constants.OK:
-            raise RuntimeError(f"bsec_compute failed with status {result.status}")
+        check_return(result.status, "bsec_compute()")
 
         if result.n_outputs == 0:
+            logger.warning("bsec_compute() result with n_outpus=0")
             return None
 
         return {
@@ -174,9 +182,10 @@ class BsecIAQ:
     def save_state(self, path: str) -> None:
         buf = (ctypes.c_uint8 * self._state_size)()
         length = ctypes.c_uint32(0)
+
         status = self._lib.bridge_get_state(buf, ctypes.byref(length))
-        if status < bsec_constants.OK:
-            raise RuntimeError(f"bridge_get_state failed with status {status}")
+        check_return(status, "bridge_get_state()")
+
         data = bytes(buf[:length.value])
 
         tmp = Path(path).with_suffix(".tmp")
@@ -191,15 +200,13 @@ class BsecIAQ:
         with Path(path).open("rb") as f:
             data = f.read()
         buf = (ctypes.c_uint8 * len(data))(*data)
+
         status = self._lib.bridge_set_state(buf, ctypes.c_uint32(len(data)))
-        if status < bsec_constants.OK:
-            raise RuntimeError(f"bridge_set_state failed with status {status}")
+        check_return(status, "bridge_set_state()")
 
     def get_sensor_settings(self, timestamp_ns: int) -> BsecSettings:
         settings = self._lib.bridge_sensor_control(timestamp_ns)
-
-        if settings.status < bsec_constants.OK:
-            raise RuntimeError(f"bridge_sensor_control failed with {settings.status}")
+        check_return(settings.status, "bridge_sensor_control()")
 
         return {
             "next_call_ns":             settings.next_call_ns,
@@ -236,6 +243,7 @@ class BsecIAQ:
             bme680.set_forced_mode()
 
             if not bme680.wait_for_tph_measurement():
+                logger.warning("TPH measurement timeout")
                 continue
 
             tph = bme680.get_compensated_tph()
@@ -244,6 +252,7 @@ class BsecIAQ:
 
             if settings["run_gas"]:
                 if not bme680.wait_for_gas_measurement():
+                    logger.warning("gas measurement timeout")
                     continue
                 gas_res = bme680.get_gas_res()
 

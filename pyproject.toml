@@ -3,4 +3,4 @@ exclude = ["**/example.py", "**/bsec_example.py"]
 
 [tool.ruff.lint]
 select = ["ALL"]
-ignore = ["D", "TRY003", "EM101", "EM102"]
+ignore = ["D", "TRY003", "EM101", "EM102", "G004"]
