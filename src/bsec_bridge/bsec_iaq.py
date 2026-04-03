@@ -13,6 +13,8 @@ from . import bsec_constants
 logger = logging.getLogger(__name__)
 
 def check_return(status : int, fn_name : str) -> None:
+    if status == bsec_constants.OK:
+        return
     return_formatted = f"{bsec_constants.RETURN_CODES[status]} ({status})"
     if status < bsec_constants.OK:
         raise RuntimeError(f"bsec_wrapper.c - {fn_name} failed with {return_formatted}")
@@ -47,7 +49,7 @@ class BsecSettings(TypedDict):
 
 
 class _BsecResult(ctypes.Structure):
-    _fields_ = [
+    _fields_ = [  # noqa: RUF012
         ("n_outputs",             ctypes.c_int),
         ("status",                ctypes.c_int),
         ("iaq",                   ctypes.c_float),
@@ -65,7 +67,7 @@ class _BsecResult(ctypes.Structure):
 
 
 class _BsecSettings(ctypes.Structure):
-    _fields_ = [
+    _fields_ = [  # noqa: RUF012
         ("status",                   ctypes.c_int),
         ("next_call_ns",             ctypes.c_int64),
         ("heater_temperature",       ctypes.c_uint16),
