@@ -231,14 +231,20 @@ class BsecIAQ:
             self.load_state(state_path)
 
         last_temp = initial_amb_temp
-        last_save = time.monotonic_ns()
+
+        timestamp_ns = time.monotonic_ns()
+        last_save = timestamp_ns
+        settings = self.get_sensor_settings(timestamp_ns)
 
         while True:
+            wait_ns = settings["next_call_ns"] - time.monotonic_ns()
+            if wait_ns > 0:
+                time.sleep(wait_ns / 1_000_000_000)
+
             timestamp_ns = time.monotonic_ns()
             settings = self.get_sensor_settings(timestamp_ns)
 
             if not settings["trigger_measurement"]:
-                time.sleep(0.1)
                 continue
 
             self._apply_bsec_settings(bme680, settings, last_temp)
@@ -268,7 +274,3 @@ class BsecIAQ:
             if state_path and time_since_save >= bsec_constants.STATE_SAVE_INTERVAL:
                 self.save_state(state_path)
                 last_save = timestamp_ns
-
-            wait_ns = settings["next_call_ns"] - timestamp_ns
-            if wait_ns > 0:
-                time.sleep(wait_ns / 1_000_000_000)
