@@ -1,6 +1,6 @@
 OK = 0
 
-STATE_SAVE_INTERVAL = 300
+STATE_SAVE_INTERVAL_NS = 300_000_000_000
 
 RETURN_CODES = {
    -1   : "BSEC_E_DOSTEPS_INVALIDINPUT - Input sensor id not in valid range",

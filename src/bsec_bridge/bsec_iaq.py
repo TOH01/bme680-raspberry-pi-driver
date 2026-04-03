@@ -12,14 +12,6 @@ from . import bsec_constants
 
 logger = logging.getLogger(__name__)
 
-def check_return(status : int, fn_name : str) -> None:
-    if status == bsec_constants.OK:
-        return
-    return_formatted = f"{bsec_constants.RETURN_CODES[status]} ({status})"
-    if status < bsec_constants.OK:
-        raise RuntimeError(f"bsec_wrapper.c - {fn_name} failed with {return_formatted}")
-    if status !=  bsec_constants.OK:
-        logger.warning(f"bsec_wrapper.c - {fn_name} returned {return_formatted}")
 
 class BsecResult(TypedDict):
     iaq: float
@@ -86,10 +78,29 @@ class BsecIAQ:
         if not Path(lib_path).exists():
             raise FileNotFoundError(f"BSEC library not found: {lib_path}")
 
-        # bsec_result_t bsec_compute();
         self._lib = ctypes.CDLL(lib_path)
-        self._lib.bsec_compute.restype = _BsecResult
-        self._lib.bsec_compute.argtypes = [
+
+        # int BsecBridge_Init(void);
+        self._lib.BsecBridge_Init.restype = ctypes.c_int
+        self._lib.BsecBridge_Init.argtypes = []
+
+        # int BsecBridge_SetConfiguration(void);
+        self._lib.BsecBridge_SetConfiguration.restype = ctypes.c_int
+        self._lib.BsecBridge_SetConfiguration.argtypes = []
+
+        # int BsecBridge_UpdateSubscription(void);
+        self._lib.BsecBridge_UpdateSubscription.restype = ctypes.c_int
+        self._lib.BsecBridge_UpdateSubscription.argtypes = []
+
+        # bsec_settings_t BsecBridge_SensorControl(int64_t timestamp_ns);
+        self._lib.BsecBridge_SensorControl.restype = _BsecSettings
+        self._lib.BsecBridge_SensorControl.argtypes = [
+            ctypes.c_int64,  # int64_t timestamp_ns
+        ]
+
+        # bsec_result_t BsecBridge_DoSteps(int64_t timestamp_ns, ...);
+        self._lib.BsecBridge_DoSteps.restype = _BsecResult
+        self._lib.BsecBridge_DoSteps.argtypes = [
             ctypes.c_int64,   # int64_t  timestamp_ns
             ctypes.c_float,   # float    temperature
             ctypes.c_float,   # float    humidity
@@ -98,32 +109,49 @@ class BsecIAQ:
             ctypes.c_uint32,  # uint32_t process_data
         ]
 
-        # int bridge_get_state();
-        self._lib.bridge_get_state.restype = ctypes.c_int
-        self._lib.bridge_get_state.argtypes = [
+        # int BsecBridge_GetState(uint8_t *state_buffer, uint32_t *state_len);
+        self._lib.BsecBridge_GetState.restype = ctypes.c_int
+        self._lib.BsecBridge_GetState.argtypes = [
             ctypes.POINTER(ctypes.c_uint8),   # uint8_t  *state_buffer
             ctypes.POINTER(ctypes.c_uint32),  # uint32_t *state_len
         ]
 
-        # int bridge_set_state();
-        self._lib.bridge_set_state.restype = ctypes.c_int
-        self._lib.bridge_set_state.argtypes = [
+        # int BsecBridge_SetState(uint8_t *state_buffer, uint32_t state_len);
+        self._lib.BsecBridge_SetState.restype = ctypes.c_int
+        self._lib.BsecBridge_SetState.argtypes = [
             ctypes.POINTER(ctypes.c_uint8),  # uint8_t  *state_buffer
             ctypes.c_uint32,                 # uint32_t state_len
         ]
 
-        # uint32_t bridge_max_state_size(void);
-        self._lib.bridge_max_state_size.restype = ctypes.c_uint32
-        self._lib.bridge_max_state_size.argtypes = []
-        self._state_size = self._lib.bridge_max_state_size()
+        # uint32_t BsecBridge_GetMaxStateSize(void);
+        self._lib.BsecBridge_GetMaxStateSize.restype = ctypes.c_uint32
+        self._lib.BsecBridge_GetMaxStateSize.argtypes = []
 
-        # bsec_settings_t bridge_sensor_control();
-        self._lib.bridge_sensor_control.restype = _BsecSettings
-        self._lib.bridge_sensor_control.argtypes = [
-            ctypes.c_int64,  # int64_t timestamp_ns
-        ]
+        self._state_size = self._lib.BsecBridge_GetMaxStateSize()
 
-    def _apply_bsec_settings(self, bme680: BME680, settings: dict,
+    def _check_state_size(self, data: bytes) -> None:
+        if len(data) > self._state_size:
+            raise ValueError(f"State file too large: {len(data)} > {self._state_size}")
+
+    def _check_return(self, status : int, fn_name : str) -> None:
+        if status == bsec_constants.OK:
+            return
+
+        return_formatted = f"{bsec_constants.RETURN_CODES[status]} ({status})"
+        fn_mod_formatted = f"bsec_bridge.c - {fn_name}"
+
+        if status < bsec_constants.OK:
+            raise RuntimeError(f"{fn_mod_formatted} failed with {return_formatted}")
+        if status !=  bsec_constants.OK:
+            logger.warning(f"{fn_mod_formatted} returned {return_formatted}")
+
+    def _check_n_outputs(self, n_outputs: int) -> bool:
+        if n_outputs == 0:
+            logger.warning("n_outputs is 0")
+            return False
+        return True
+
+    def _apply_bsec_settings(self, bme680: BME680, settings: BsecSettings,
                              ambient_temp: int) -> None:
 
         if settings["temperature_oversampling"] > 0:
@@ -137,78 +165,70 @@ class BsecIAQ:
             base_ms, multiplier = bme680.calc_gas_wait_params(
                 settings["heater_duration"],
             )
-            res_heat = bme680.get_res_heat_val(ambient_temp,
-                                               settings["heater_temperature"])
+            res_heat = bme680.get_res_heat_val(
+                ambient_temp,
+                settings["heater_temperature"],
+            )
 
             bme680.configure_heater_profile(0, base_ms, multiplier, res_heat)
             bme680.activate_heater_profile(0)
             bme680.activate_gas_conversion()
 
-    def start_bsec(self) -> None:
-        status = self._lib.init_bridge()
-        check_return(status, "init_bridge()")
 
-    def compute(self, timestamp_ns: int, tph_result: TPHResult, gas_resistance: float,
-                process_data: int) -> BsecResult | None:
+    def init_bsec(self, state_path: str | None = None) -> None:
+        """
+        BST-BME-Integration-Guide, 2.2 Integration of BSEC Interfaces
 
-        result = self._lib.bsec_compute(
-            timestamp_ns,
-            ctypes.c_float(tph_result["temperature"]),
-            ctypes.c_float(tph_result["humidity"]),
-            ctypes.c_float(tph_result["pressure"]),
-            ctypes.c_float(gas_resistance),
-            ctypes.c_uint32(process_data),
+        Initialization sequence for the BSEC library:
+        1. bsec_init()               : Initialization of library
+        2. bsec_set_configuration()  : Update configuration settings (optional)
+        3. bsec_set_state()          : Restore state of library (optional)
+        """
+
+        self._check_return(self._lib.BsecBridge_Init(), "BsecBridge_Init()")
+
+        # configuration compiled into SetConfiguration() by compile.sh
+        self._check_return(
+            self._lib.BsecBridge_SetConfiguration(),
+            "BsecBridge_SetConfiguration",
         )
 
-        check_return(result.status, "bsec_compute()")
+        if state_path and Path(state_path).exists():
+            data = Path(state_path).read_bytes()
+            self._check_state_size(data)
 
-        if result.n_outputs == 0:
-            logger.warning("bsec_compute() result with n_outpus=0")
-            return None
+            buf = (ctypes.c_uint8 * len(data))(*data)
 
-        return {
-            "iaq":                   result.iaq,
-            "static_iaq":            result.static_iaq,
-            "co2_equivalent":        result.co2_equivalent,
-            "breath_voc_equivalent": result.breath_voc_equivalent,
-            "temperature":           result.temperature,
-            "humidity":              result.humidity,
-            "stab_status":           result.stab_status,
-            "run_in_status":         result.run_in_status,
-            "gas_percentage":        result.gas_percentage,
-            "compensated_gas":       result.compensated_gas,
-            "iaq_accuracy":          result.iaq_accuracy,
-            "timestamp":             timestamp_ns,
-        }
+            self._check_return(
+                self._lib.BsecBridge_SetState(buf, ctypes.c_uint32(len(data))),
+                "BsecBridge_SetState()",
+            )
+        else:
+            logger.warning("init_bsec called without valid state file path")
 
-    def save_state(self, path: str) -> None:
-        buf = (ctypes.c_uint8 * self._state_size)()
-        length = ctypes.c_uint32(0)
+    def subscribe_bsec(self) -> None:
+        """
+        BST-BME-Integration-Guide, 2.2 Integration of BSEC Interfaces
 
-        status = self._lib.bridge_get_state(buf, ctypes.byref(length))
-        check_return(status, "bridge_get_state()")
+        Subscribe ouputs:
+        - Enable library outputs with specified mode
+        """
 
-        data = bytes(buf[:length.value])
+        self._check_return(
+            self._lib.BsecBridge_UpdateSubscription(),
+            "BsecBridge_UpdateSubscription()",
+        )
 
-        tmp = Path(path).with_suffix(".tmp")
-        with tmp.open("wb") as f:
-            f.write(data)
+    def sensor_control(self, timestamp_ns: int) -> BsecSettings:
+        """
+        BST-BME-Integration-Guide, 2.2 Integration of BSEC Interfaces
 
-        tmp.replace(path)
+        Signal processing with BSEC library:
+        - Retrieve BME68x sensor instructions
+        """
 
-    def load_state(self, path: str) -> None:
-        if not Path(path).exists():
-            return
-        with Path(path).open("rb") as f:
-            data = f.read()
-        buf = (ctypes.c_uint8 * len(data))(*data)
-
-        status = self._lib.bridge_set_state(buf, ctypes.c_uint32(len(data)))
-        check_return(status, "bridge_set_state()")
-
-    def get_sensor_settings(self, timestamp_ns: int) -> BsecSettings:
-        settings = self._lib.bridge_sensor_control(timestamp_ns)
-        check_return(settings.status, "bridge_sensor_control()")
+        settings = self._lib.BsecBridge_SensorControl(timestamp_ns)
+        self._check_return(settings.status, "BsecBridge_SensorControl()")
 
         return {
             "next_call_ns":             settings.next_call_ns,
@@ -222,19 +242,72 @@ class BsecIAQ:
             "process_data":             settings.process_data,
         }
 
+    def do_steps(self, timestamp_ns: int, tph_result: TPHResult, gas_resistance: float,
+                process_data: int) -> BsecResult | None:
+        """
+        BST-BME-Integration-Guide, 2.2 Integration of BSEC Interfaces
+
+        Signal processing with BSEC library:
+        - Main signal processing function
+        """
+
+        result = self._lib.BsecBridge_DoSteps(
+            timestamp_ns,
+            ctypes.c_float(tph_result["temperature"]),
+            ctypes.c_float(tph_result["humidity"]),
+            ctypes.c_float(tph_result["pressure"]),
+            ctypes.c_float(gas_resistance),
+            ctypes.c_uint32(process_data),
+        )
+
+        self._check_return(result.status, "BsecBridge_DoSteps()")
+
+        if self._check_n_outputs(result.n_outputs):
+            return {
+                "iaq":                   result.iaq,
+                "static_iaq":            result.static_iaq,
+                "co2_equivalent":        result.co2_equivalent,
+                "breath_voc_equivalent": result.breath_voc_equivalent,
+                "temperature":           result.temperature,
+                "humidity":              result.humidity,
+                "stab_status":           result.stab_status,
+                "run_in_status":         result.run_in_status,
+                "gas_percentage":        result.gas_percentage,
+                "compensated_gas":       result.compensated_gas,
+                "iaq_accuracy":          result.iaq_accuracy,
+                "timestamp":             timestamp_ns,
+            }
+
+        return None
+
+    def save_state(self, path: str) -> None:
+        buf = (ctypes.c_uint8 * self._state_size)()
+        length = ctypes.c_uint32(0)
+
+        self._check_return(
+            self._lib.BsecBridge_GetState(buf, ctypes.byref(length)),
+            "BsecBridge_GetState()",
+        )
+
+        data = bytes(buf[:length.value])
+
+        tmp = Path(path).with_suffix(".tmp")
+        with tmp.open("wb") as f:
+            f.write(data)
+
+        tmp.replace(path)
+
     def run(self, bme680: BME680, callback: Callable[[BsecResult], None],
             state_path: str | None = None, initial_amb_temp: int = 25) -> None:
 
-        self.start_bsec()
-
-        if state_path:
-            self.load_state(state_path)
-
         last_temp = initial_amb_temp
+        initial_timestamp_ns = time.monotonic_ns()
+        last_save = initial_timestamp_ns
 
-        timestamp_ns = time.monotonic_ns()
-        last_save = timestamp_ns
-        settings = self.get_sensor_settings(timestamp_ns)
+        self.init_bsec(state_path)
+        self.subscribe_bsec()
+
+        settings = self.sensor_control(initial_timestamp_ns)
 
         while True:
             wait_ns = settings["next_call_ns"] - time.monotonic_ns()
@@ -242,7 +315,7 @@ class BsecIAQ:
                 time.sleep(wait_ns / 1_000_000_000)
 
             timestamp_ns = time.monotonic_ns()
-            settings = self.get_sensor_settings(timestamp_ns)
+            settings = self.sensor_control(timestamp_ns)
 
             if not settings["trigger_measurement"]:
                 continue
@@ -264,13 +337,13 @@ class BsecIAQ:
                     continue
                 gas_res = bme680.get_gas_res()
 
-            result = self.compute(timestamp_ns, tph, gas_res, settings["process_data"])
+            result = self.do_steps(timestamp_ns, tph, gas_res, settings["process_data"])
 
             if result is not None:
                 last_temp = int(tph["temperature"])
                 callback(result)
 
             time_since_save = timestamp_ns - last_save
-            if state_path and time_since_save >= bsec_constants.STATE_SAVE_INTERVAL:
+            if state_path and time_since_save >= bsec_constants.STATE_SAVE_INTERVAL_NS:
                 self.save_state(state_path)
                 last_save = timestamp_ns
