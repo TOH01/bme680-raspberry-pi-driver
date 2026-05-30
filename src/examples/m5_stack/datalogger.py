@@ -14,9 +14,6 @@ Record layout - 10 bytes, little-endian timestamp:
     Humidity    10      uint10 (*10)        0 - 102.3 %          0.1 %
     IAQ          9      uint9               0 - 511             1
     CO₂         13      uint13 (÷2)         0 - 16 382 ppm      2 ppm
-
-No file header.  No sync records.  Every record is self-contained.
-Append-only.  Thread-safe writes via a lock.
 """
 
 from __future__ import annotations

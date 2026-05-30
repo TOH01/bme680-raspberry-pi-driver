@@ -1,71 +1,3 @@
-import argparse
-import json
-import time
-from pathlib import Path
-
-from flask import Flask, Response, request
-
-from examples.web_api.datalogger import DataLogger
-
-_DIR = Path(__file__).parent
-LOG = _DIR / "airquality.bin"
-LATEST = _DIR / "latest.json"
-
-app = Flask(__name__)
-_logger: DataLogger | None = None
-_html: str = ""
-
-
-def _read_latest() -> dict | None:
-    """Read the latest sensor reading written by sensor.py."""
-    try:
-        return json.loads(LATEST.read_text())
-    except (OSError, json.JSONDecodeError):
-        return None
-
-
-@app.route("/")
-@app.route("/history")
-def index():
-    return _html
-
-
-@app.route("/events")
-def events():
-    """SSE stream.  Reads latest.json every 3 s.  Adds _stale flag
-    so the dashboard can show a warning if the sensor is down."""
-    def gen():
-        last_sent = None
-        while True:
-            d = _read_latest()
-            if d is not None:
-                ts = d.get("timestamp", 0)
-                stale = (time.time() - ts) > 90
-                d["_stale"] = stale
-                payload = json.dumps(d)
-                if payload != last_sent:
-                    yield f"data: {payload}\n\n"
-                    last_sent = payload
-            time.sleep(3)
-    return Response(
-        gen(),
-        content_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
-
-
-@app.route("/history/data")
-def history_data():
-    r = request.args.get("range", "day")
-    if r not in ("day", "week", "month", "year"):
-        r = "day"
-    return Response(
-        json.dumps(_logger.query(r)),
-        content_type="application/json",
-    )
-
-
-_TEMPLATE = """\
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -211,27 +143,27 @@ var ROOM = __ROOM__;
 var LANG = {
   en: {
     title:"Air quality", hist:"History", live:"Live",
-    conn:"connecting\\u2026", wait:"Waiting for sensor\\u2026",
+    conn:"connecting\u2026", wait:"Waiting for sensor\u2026",
     now:"just now", ago:"s ago",
-    temp:"Temperature", hum:"Humidity", co2:"CO\\u2082 equivalent", iaqLabel:"IAQ",
+    temp:"Temperature", hum:"Humidity", co2:"CO\u2082 equivalent", iaqLabel:"IAQ",
     excellent:"Excellent", good:"Good", moderate:"Moderate",
     unhealthy:"Unhealthy", poor:"Poor", hazardous:"Hazardous",
     cold:"Cold", cool:"Cool", comfortable:"Comfortable", warm:"Warm", hot:"Hot",
     vdry:"Very dry", dry:"Dry", sdry:"Slightly dry", optimal:"Optimal",
     shumid:"Slightly humid", humid:"Humid", vpoor:"Very poor",
     offline:"Sensor offline",
-    hExcellent:"Excellent air quality \\u2014 no action needed.",
+    hExcellent:"Excellent air quality \u2014 no action needed.",
     hGood:"Air quality is good.",
     hModerate:"Consider ventilating soon.",
-    hModHumid:"Moderate air quality and high humidity \\u2014 open a window.",
+    hModHumid:"Moderate air quality and high humidity \u2014 open a window.",
     hUnhealthy:"Open a window to improve air quality.",
     hPoor:"Ventilate immediately.",
-    hHazardous:"Air quality is hazardous \\u2014 ventilate now.",
-    hCo2Rising:"Air quality is fine, but CO\\u2082 is rising \\u2014 consider ventilating.",
-    hDryAir:"Air quality is good, but humidity is low \\u2014 consider a humidifier.",
-    hColdDry:"Room is cool and dry \\u2014 heating and a humidifier would help.",
-    hHotHumid:"Room is warm and humid \\u2014 open a window to cool down.",
-    hWarm:"Room is warm \\u2014 cracking a window would help.",
+    hHazardous:"Air quality is hazardous \u2014 ventilate now.",
+    hCo2Rising:"Air quality is fine, but CO\u2082 is rising \u2014 consider ventilating.",
+    hDryAir:"Air quality is good, but humidity is low \u2014 consider a humidifier.",
+    hColdDry:"Room is cool and dry \u2014 heating and a humidifier would help.",
+    hHotHumid:"Room is warm and humid \u2014 open a window to cool down.",
+    hWarm:"Room is warm \u2014 cracking a window would help.",
     stab:"Stable", stabing:"Stabilizing",
     acc:["Accuracy: unreliable","Accuracy: low","Accuracy: medium","Accuracy: high"],
     minimum:"Minimum", average:"Average", maximum:"Maximum",
@@ -241,35 +173,35 @@ var LANG = {
     months:["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
   },
   de: {
-    title:"Luftqualit\\u00e4t", hist:"Verlauf", live:"Live",
-    conn:"Verbinde\\u2026", wait:"Warte auf Sensor\\u2026",
+    title:"Luftqualit\u00e4t", hist:"Verlauf", live:"Live",
+    conn:"Verbinde\u2026", wait:"Warte auf Sensor\u2026",
     now:"gerade eben", ago:"s her",
-    temp:"Temperatur", hum:"Luftfeuchtigkeit", co2:"CO\\u2082-\\u00c4quivalent", iaqLabel:"IAQ",
-    excellent:"Ausgezeichnet", good:"Gut", moderate:"M\\u00e4\\u00dfig",
-    unhealthy:"Ungesund", poor:"Schlecht", hazardous:"Gef\\u00e4hrlich",
-    cold:"Kalt", cool:"K\\u00fchl", comfortable:"Angenehm", warm:"Warm", hot:"Hei\\u00df",
+    temp:"Temperatur", hum:"Luftfeuchtigkeit", co2:"CO\u2082-\u00c4quivalent", iaqLabel:"IAQ",
+    excellent:"Ausgezeichnet", good:"Gut", moderate:"M\u00e4\u00dfig",
+    unhealthy:"Ungesund", poor:"Schlecht", hazardous:"Gef\u00e4hrlich",
+    cold:"Kalt", cool:"K\u00fchl", comfortable:"Angenehm", warm:"Warm", hot:"Hei\u00df",
     vdry:"Sehr trocken", dry:"Trocken", sdry:"Leicht trocken", optimal:"Optimal",
     shumid:"Leicht feucht", humid:"Feucht", vpoor:"Sehr schlecht",
     offline:"Sensor offline",
-    hExcellent:"Ausgezeichnete Luftqualit\\u00e4t \\u2014 kein Handlungsbedarf.",
-    hGood:"Luftqualit\\u00e4t ist gut.",
-    hModerate:"L\\u00fcften empfohlen.",
-    hModHumid:"M\\u00e4\\u00dfige Luftqualit\\u00e4t und hohe Feuchtigkeit \\u2014 Fenster \\u00f6ffnen.",
-    hUnhealthy:"Fenster \\u00f6ffnen, um die Luftqualit\\u00e4t zu verbessern.",
-    hPoor:"Sofort l\\u00fcften.",
-    hHazardous:"Luftqualit\\u00e4t ist gef\\u00e4hrlich \\u2014 sofort l\\u00fcften.",
-    hCo2Rising:"Luftqualit\\u00e4t ist gut, aber CO\\u2082 steigt \\u2014 ggf. l\\u00fcften.",
-    hDryAir:"Luftqualit\\u00e4t ist gut, aber die Luft ist trocken \\u2014 Luftbefeuchter empfohlen.",
-    hColdDry:"Raum ist k\\u00fchl und trocken \\u2014 Heizung und Luftbefeuchter helfen.",
-    hHotHumid:"Raum ist warm und feucht \\u2014 Fenster \\u00f6ffnen.",
-    hWarm:"Raum ist warm \\u2014 Fenster einen Spalt \\u00f6ffnen empfohlen.",
+    hExcellent:"Ausgezeichnete Luftqualit\u00e4t \u2014 kein Handlungsbedarf.",
+    hGood:"Luftqualit\u00e4t ist gut.",
+    hModerate:"L\u00fcften empfohlen.",
+    hModHumid:"M\u00e4\u00dfige Luftqualit\u00e4t und hohe Feuchtigkeit \u2014 Fenster \u00f6ffnen.",
+    hUnhealthy:"Fenster \u00f6ffnen, um die Luftqualit\u00e4t zu verbessern.",
+    hPoor:"Sofort l\u00fcften.",
+    hHazardous:"Luftqualit\u00e4t ist gef\u00e4hrlich \u2014 sofort l\u00fcften.",
+    hCo2Rising:"Luftqualit\u00e4t ist gut, aber CO\u2082 steigt \u2014 ggf. l\u00fcften.",
+    hDryAir:"Luftqualit\u00e4t ist gut, aber die Luft ist trocken \u2014 Luftbefeuchter empfohlen.",
+    hColdDry:"Raum ist k\u00fchl und trocken \u2014 Heizung und Luftbefeuchter helfen.",
+    hHotHumid:"Raum ist warm und feucht \u2014 Fenster \u00f6ffnen.",
+    hWarm:"Raum ist warm \u2014 Fenster einen Spalt \u00f6ffnen empfohlen.",
     stab:"Stabil", stabing:"Stabilisiert",
-    acc:["Genauigkeit: unzuverl\\u00e4ssig","Genauigkeit: niedrig","Genauigkeit: mittel","Genauigkeit: hoch"],
+    acc:["Genauigkeit: unzuverl\u00e4ssig","Genauigkeit: niedrig","Genauigkeit: mittel","Genauigkeit: hoch"],
     minimum:"Minimum", average:"Durchschnitt", maximum:"Maximum",
-    records:"Eintr\\u00e4ge", interval:"30-s-Intervall",
+    records:"Eintr\u00e4ge", interval:"30-s-Intervall",
     lastAgo:function(s){return s<60?"Letzter Eintrag vor "+s+" s":"Letzter Eintrag vor "+Math.round(s/60)+" min"},
     days:["So","Mo","Di","Mi","Do","Fr","Sa"],
-    months:["Jan","Feb","M\\u00e4r","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"],
+    months:["Jan","Feb","M\u00e4r","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"],
   }
 };
 var L = LANG[navigator.language.slice(0,2)] || LANG.en;
@@ -318,7 +250,7 @@ function rateIAQ(v){
 
 /* cards config used by both views */
 var CARDS = [
-  {id:"temp",key:"temperature",k:"t",label:L.temp,unit:"\\u00b0C",fix:1,
+  {id:"temp",key:"temperature",k:"t",label:L.temp,unit:"\u00b0C",fix:1,
    icon:ICONS.temp,rate:rateTemp},
   {id:"hum",key:"humidity",k:"h",label:L.hum,unit:"%",fix:1,
    icon:ICONS.hum,rate:rateHum},
@@ -332,14 +264,14 @@ var METRICS = [
    thresholds:[
      {v:50,label:L.good,s:"good"},{v:100,label:L.moderate,s:"warn"},
      {v:150,label:L.unhealthy,s:"warn"},{v:300,label:L.poor,s:"bad"}]},
-  {k:"t",l:L.temp,icon:ICONS.temp,unit:"\\u00b0C",color:"#EF9F27",fix:1,rate:rateTemp,
+  {k:"t",l:L.temp,icon:ICONS.temp,unit:"\u00b0C",color:"#EF9F27",fix:1,rate:rateTemp,
    thresholds:[
      {v:18,label:L.cool,s:"warn"},{v:22,label:"",s:"good"},{v:26,label:L.warm,s:"warn"}]},
   {k:"h",l:L.hum,icon:ICONS.hum,unit:"%",color:"#4BA3E2",fix:1,rate:rateHum,
    thresholds:[
      {v:35,label:L.dry,s:"warn"},{v:40,label:"",s:"good"},
      {v:60,label:"",s:"good"},{v:70,label:L.humid,s:"warn"}]},
-  {k:"c",l:"CO\\u2082",icon:ICONS.co2,unit:"ppm",color:"#E24B4A",fix:0,rate:rateCo2,
+  {k:"c",l:"CO\u2082",icon:ICONS.co2,unit:"ppm",color:"#E24B4A",fix:0,rate:rateCo2,
    thresholds:[
      {v:800,label:L.good,s:"good"},{v:1200,label:L.moderate,s:"warn"},
      {v:2000,label:L.poor,s:"bad"}]},
@@ -417,9 +349,9 @@ var lastUp=0;
   liveRoot.appendChild(cg);
 
   liveRoot.insertAdjacentHTML("beforeend",
-    '<div class="foot"><span id="fstab">--</span><span class="sep">\\u00b7</span>'+
-    '<span id="facc">--</span><span class="sep">\\u00b7</span><span>BME680</span>'+
-    '<span class="sep">\\u00b7</span><span class="ts" id="ts">'+L.conn+'</span></div>');
+    '<div class="foot"><span id="fstab">--</span><span class="sep">\u00b7</span>'+
+    '<span id="facc">--</span><span class="sep">\u00b7</span><span>BME680</span>'+
+    '<span class="sep">\u00b7</span><span class="ts" id="ts">'+L.conn+'</span></div>');
 })();
 
 function liveUpdate(d){
@@ -693,7 +625,7 @@ function navigate(path,push){
 
   document.getElementById("v-live").className="view"+(target==="live"?" active":"");
   document.getElementById("v-hist").className="view"+(target==="hist"?" active":"");
-  document.title=target==="hist"?(ROOM+" \\u2014 "+L.hist):L.title;
+  document.title=target==="hist"?(ROOM+" \u2014 "+L.hist):L.title;
 
   if(target==="hist")hLoad();
   if(push)history.pushState(null,"",path);
@@ -741,30 +673,4 @@ navigate(location.pathname,false);
 })();
 </script>
 </body>
-</html>"""
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="BME680 air-quality web server")
-    parser.add_argument(
-        "--room", "-r",
-        default="Living room",
-        help="Room name shown in the dashboard (default: Living room)",
-    )
-    parser.add_argument(
-        "--port", "-p",
-        type=int, default=8080,
-        help="HTTP port (default: 8080)",
-    )
-    args = parser.parse_args()
-
-    _html = _TEMPLATE.replace("__ROOM__", json.dumps(args.room))
-    _logger = DataLogger(LOG)
-
-    print(f"[web] serving on https://0.0.0.0:{args.port}")
-    app.run(
-        host="0.0.0.0",
-        port=args.port,
-        threaded=True,
-        ssl_context="adhoc",
-    )
+</html>

@@ -41,7 +41,7 @@ class BsecSettings(TypedDict):
 
 
 class _BsecResult(ctypes.Structure):
-    _fields_ = [  # noqa: RUF012
+    _fields_ = [
         ("n_outputs",             ctypes.c_int),
         ("status",                ctypes.c_int),
         ("iaq",                   ctypes.c_float),
@@ -59,7 +59,7 @@ class _BsecResult(ctypes.Structure):
 
 
 class _BsecSettings(ctypes.Structure):
-    _fields_ = [  # noqa: RUF012
+    _fields_ = [
         ("status",                   ctypes.c_int),
         ("next_call_ns",             ctypes.c_int64),
         ("heater_temperature",       ctypes.c_uint16),
@@ -74,7 +74,7 @@ class _BsecSettings(ctypes.Structure):
 
 
 class BsecIAQ:
-    def __init__(self, lib_path: str = "./libbsec_wrapper.so") -> None:
+    def __init__(self, lib_path: Path = Path("./libbsec_wrapper.so")) -> None:
         if not Path(lib_path).exists():
             raise FileNotFoundError(f"BSEC library not found: {lib_path}")
 
@@ -175,7 +175,7 @@ class BsecIAQ:
             bme680.activate_gas_conversion()
 
 
-    def init_bsec(self, state_path: str | None = None) -> None:
+    def init_bsec(self, state_path: Path | None = None) -> None:
         """
         BST-BME-Integration-Guide, 2.2 Integration of BSEC Interfaces
 
@@ -280,7 +280,7 @@ class BsecIAQ:
 
         return None
 
-    def save_state(self, path: str) -> None:
+    def save_state(self, path: Path) -> None:
         buf = (ctypes.c_uint8 * self._state_size)()
         length = ctypes.c_uint32(0)
 
@@ -298,7 +298,7 @@ class BsecIAQ:
         tmp.replace(path)
 
     def run(self, bme680: BME680, callback: Callable[[BsecResult], None],
-            state_path: str | None = None, initial_amb_temp: int = 25) -> None:
+            state_path: Path | None = None, initial_amb_temp: int = 25) -> None:
 
         last_temp = initial_amb_temp
         initial_timestamp_ns = time.monotonic_ns()

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from bsec_bridge import BsecIAQ
 from driver import BME680
-from examples.web_api.datalogger import DataLogger
+from examples.m5_stack.datalogger import DataLogger
 
 _DIR = Path(__file__).parent
 LIB = _DIR.parent / "libbsec_wrapper.so"
