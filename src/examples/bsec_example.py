@@ -4,6 +4,8 @@ from pathlib import Path
 from bsec_bridge import BsecIAQ
 from driver import BME680
 
+import time
+
 _DIR = Path(__file__).parent
 LIB_PATH = _DIR / "libbsec_wrapper.so"
 STATE_PATH = _DIR / "bsec_state.bin"
@@ -27,6 +29,9 @@ def print_result(result):
 if __name__ == "__main__":
     bme680 = BME680()
     bsec = BsecIAQ(lib_path=LIB_PATH)
+
+    bme680.soft_reset()
+    time.sleep(0.1)
 
     try:
         bsec.run(bme680, callback=print_result, state_path=STATE_PATH)

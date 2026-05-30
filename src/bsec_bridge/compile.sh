@@ -24,7 +24,7 @@ gcc \
     -shared \
     -fPIC \
     -o "$OUTPUT" \
-    "$SRC_DIR/bsec_wrapper.c" \
+    "$SRC_DIR/bsec_bridge.c" \
     "$CONFIG_SRC" \
     $INCLUDE_PATHS \
     "$BSEC_LIB" \
